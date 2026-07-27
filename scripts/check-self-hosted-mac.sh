@@ -13,6 +13,15 @@ warn() {
 IDENTITIES_FILE="$(mktemp "${TMPDIR:-/tmp}/transwarp-codesigning-identities.XXXXXX")"
 trap 'rm -f "$IDENTITIES_FILE"' EXIT INT TERM
 EVIDENCE_PATH="${TRANSWARP_SELF_HOSTED_EVIDENCE:-}"
+EVIDENCE_RECEIPT="$EVIDENCE_PATH"
+if [ -z "$EVIDENCE_RECEIPT" ]; then
+	EVIDENCE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/transwarp-self-hosted-evidence.XXXXXX")"
+	EVIDENCE_RECEIPT="$EVIDENCE_DIR/self-hosted-mac.json"
+else
+	EVIDENCE_DIR="$(dirname "$EVIDENCE_RECEIPT")"
+	mkdir -p "$EVIDENCE_DIR"
+fi
+SOURCE_LOG="$EVIDENCE_DIR/self-hosted-readiness.log"
 
 ARCH="$(uname -m)"
 [ "$ARCH" = "arm64" ] || fail "expected Apple Silicon arm64, got $ARCH"
@@ -51,11 +60,7 @@ else
 	warn "could not inspect code-signing identities"
 fi
 
-if [ -n "$EVIDENCE_PATH" ]; then
-	EVIDENCE_DIR="$(dirname "$EVIDENCE_PATH")"
-	mkdir -p "$EVIDENCE_DIR"
-	SOURCE_LOG="$EVIDENCE_DIR/self-hosted-readiness.log"
-	cat > "$SOURCE_LOG" <<LOG
+cat > "$SOURCE_LOG" <<LOG
 self-hosted Mac readiness passed
 architecture=$ARCH
 macos=$OS_VERSION
@@ -66,17 +71,22 @@ github_actions=$([ -n "${GITHUB_ACTIONS:-}" ] && printf true || printf false)
 runner_name=${RUNNER_NAME:-}
 runner_os=${RUNNER_OS:-}
 LOG
-	go run ./cmd/transwarp-audit \
-		-write-self-hosted-evidence "$EVIDENCE_PATH" \
-		-self-hosted-architecture "$ARCH" \
-		-self-hosted-macos "$OS_VERSION" \
-		-self-hosted-developer-dir "$DEVELOPER_DIR_VALUE" \
-		-self-hosted-xcode "$XCODE_VERSION" \
-		-self-hosted-code-signing-identities-visible="$CODE_SIGNING_IDENTITIES_VISIBLE" \
-		-self-hosted-github-actions="$([ -n "${GITHUB_ACTIONS:-}" ] && printf true || printf false)" \
-		-self-hosted-runner-name "${RUNNER_NAME:-}" \
-		-self-hosted-runner-os "${RUNNER_OS:-}" \
-		-self-hosted-source-log "$SOURCE_LOG"
+go run ./cmd/transwarp-audit \
+	-write-self-hosted-evidence "$EVIDENCE_RECEIPT" \
+	-self-hosted-architecture "$ARCH" \
+	-self-hosted-macos "$OS_VERSION" \
+	-self-hosted-developer-dir "$DEVELOPER_DIR_VALUE" \
+	-self-hosted-xcode "$XCODE_VERSION" \
+	-self-hosted-code-signing-identities-visible="$CODE_SIGNING_IDENTITIES_VISIBLE" \
+	-self-hosted-github-actions="$([ -n "${GITHUB_ACTIONS:-}" ] && printf true || printf false)" \
+	-self-hosted-runner-name "${RUNNER_NAME:-}" \
+	-self-hosted-runner-os "${RUNNER_OS:-}" \
+	-self-hosted-source-log "$SOURCE_LOG"
+go run ./cmd/transwarp-audit \
+	-evidence-only \
+	-self-hosted-evidence "$EVIDENCE_RECEIPT" \
+	-summary >/dev/null
+if [ -n "$EVIDENCE_PATH" ]; then
 	echo "evidence=$EVIDENCE_PATH"
 fi
 
