@@ -84,6 +84,20 @@ func TestValidateReleaseCollectionPreflightRejectsInvalidGitHubRunnerForGenerate
 	}
 }
 
+func TestValidateReleaseCollectionPreflightRequiresAppLaunchForNamedTunnelEvidence(t *testing.T) {
+	err := ValidateReleaseCollectionPreflight(ReleaseCollectionPreflightOptions{
+		AllowIncomplete:          "1",
+		CollectNamedTunnel:       "1",
+		NamedTunnelLaunchMode:    "runner",
+		NotarizeRequested:        "0",
+		CloudflareTunnelTokenSet: true,
+		PublicURL:                "https://transwarp.example.com",
+	})
+	if err == nil || !strings.Contains(err.Error(), "TRANSWARP_NAMED_TUNNEL_LAUNCH_MODE must be app") {
+		t.Fatalf("expected app launch mode error, got %v", err)
+	}
+}
+
 func TestValidateReleaseCollectionPreflightRejectsPartialAccessCredentials(t *testing.T) {
 	err := ValidateReleaseCollectionPreflight(ReleaseCollectionPreflightOptions{
 		AllowIncomplete:    "1",

@@ -89,8 +89,8 @@ func WriteNamedTunnelEvidence(options NamedTunnelEvidenceWriteOptions) error {
 	if options.LaunchMode == "" {
 		options.LaunchMode = "app"
 	}
-	if options.LaunchMode != "app" && options.LaunchMode != "runner" {
-		return errors.New("named tunnel launch mode must be app or runner")
+	if options.LaunchMode != "app" {
+		return errors.New("named tunnel release evidence requires app launch mode")
 	}
 	publicURL := strings.TrimSpace(options.PublicURL)
 	if err := endpoint.ValidateBaseURL(publicURL, "public_url"); err != nil {

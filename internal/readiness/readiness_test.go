@@ -3417,6 +3417,30 @@ func TestWriteNamedTunnelEvidenceFromSmokeLogs(t *testing.T) {
 	}
 }
 
+func TestWriteNamedTunnelEvidenceRequiresAppLaunchMode(t *testing.T) {
+	dir := t.TempDir()
+	inputs := writeNamedTunnelSmokeInputs(t, dir, "build-123", "echo", "request-123", "machine-123", "https://transwarp.example.com")
+
+	err := WriteNamedTunnelEvidence(NamedTunnelEvidenceWriteOptions{
+		OutputPath:                 filepath.Join(dir, "named-tunnel-evidence.json"),
+		LaunchMode:                 "runner",
+		PublicURL:                  "https://transwarp.example.com",
+		MachineID:                  "machine-123",
+		JobID:                      "echo",
+		RequestID:                  "request-123",
+		DiagnoseLogPath:            inputs.diagnoseLog,
+		DispatchLogPath:            inputs.dispatchLog,
+		RunnerLogPath:              inputs.runnerLog,
+		TargetsRegisteredPath:      inputs.targetsRegistered,
+		TargetsAfterDeregisterPath: inputs.targetsAfterDeregister,
+		ResultsPath:                inputs.results,
+		Now:                        fixedNow,
+	})
+	if err == nil || !strings.Contains(err.Error(), "requires app launch mode") {
+		t.Fatalf("expected app launch mode error, got %v", err)
+	}
+}
+
 func TestNamedTunnelEvidenceRejectsDifferentAppBundle(t *testing.T) {
 	dir := t.TempDir()
 	appPath, _ := writeCleanMacBundleFixture(t, filepath.Join(dir, "launched"))

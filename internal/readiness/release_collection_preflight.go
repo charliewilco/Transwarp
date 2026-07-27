@@ -11,6 +11,7 @@ import (
 type ReleaseCollectionPreflightOptions struct {
 	AllowIncomplete            string
 	CollectNamedTunnel         string
+	NamedTunnelLaunchMode      string
 	NotarizeRequested          string
 	NamedTunnelEvidencePath    string
 	CIDispatchEvidencePath     string
@@ -32,6 +33,7 @@ func ReleaseCollectionPreflightFromEnv(getenv func(string) string) ReleaseCollec
 	return ReleaseCollectionPreflightOptions{
 		AllowIncomplete:            envValue(getenv, "TRANSWARP_COLLECT_ALLOW_INCOMPLETE", "0"),
 		CollectNamedTunnel:         envValue(getenv, "TRANSWARP_COLLECT_NAMED_TUNNEL", "auto"),
+		NamedTunnelLaunchMode:      envValue(getenv, "TRANSWARP_NAMED_TUNNEL_LAUNCH_MODE", "app"),
 		NotarizeRequested:          envValue(getenv, "TRANSWARP_NOTARIZE_REQUESTED", "0"),
 		NamedTunnelEvidencePath:    getenv("TRANSWARP_NAMED_TUNNEL_EVIDENCE"),
 		CIDispatchEvidencePath:     getenv("TRANSWARP_CI_DISPATCH_EVIDENCE"),
@@ -75,6 +77,13 @@ func ValidateReleaseCollectionPreflight(options ReleaseCollectionPreflightOption
 		return errors.New("TRANSWARP_ACCESS_CLIENT_ID and TRANSWARP_ACCESS_CLIENT_SECRET must be provided together")
 	}
 	if collectNamedTunnel {
+		launchMode := strings.TrimSpace(options.NamedTunnelLaunchMode)
+		if launchMode == "" {
+			launchMode = "app"
+		}
+		if launchMode != "app" {
+			return errors.New("TRANSWARP_NAMED_TUNNEL_LAUNCH_MODE must be app for release evidence collection")
+		}
 		if !options.CloudflareTunnelTokenSet {
 			return errors.New("TRANSWARP_CLOUDFLARE_TUNNEL_TOKEN is required for named-tunnel evidence")
 		}
