@@ -345,7 +345,21 @@ func RunCoordinatorWithResult(ctx context.Context, client *http.Client, request 
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || streamContextEnded(err) {
 			_ = CancelCoordinator(context.Background(), client, request)
 		}
+		if streamResult.BuildID == "" {
+			return result, err
+		}
+		if recorded, resultErr := GetCoordinatorResult(ctx, client, request); resultErr == nil {
+			return recorded.RunResult(), err
+		}
 		return result, err
+	}
+	if streamResult.BuildID != "" {
+		recorded, resultErr := GetCoordinatorResult(ctx, client, request)
+		if resultErr != nil {
+			return result, resultErr
+		}
+		statusErr := recorded.StatusError()
+		return recorded.RunResult(), statusErr
 	}
 	return result, nil
 }

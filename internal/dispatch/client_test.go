@@ -351,6 +351,80 @@ func TestGetCoordinatorResultReturnsHTTPErrorBody(t *testing.T) {
 	}
 }
 
+func TestRunCoordinatorWithResultFetchesRecordedTerminalResult(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/transwarp/dispatch":
+			response.Write([]byte(`{"kind":"coordinator","message":"accepted runner build","build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","machine_id":"machine-123","public_url":"https://runner.example.com"}` + "\n" +
+				"hello from mac\n" +
+				"[result] recorded passed\n"))
+		case "/transwarp/results/run-123":
+			response.Write([]byte(`{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","machine_id":"machine-123","machine":"Mac Studio","repo_url":"https://github.com/example/app.git","ref":"refs/heads/main","commit":"0123456789abcdef0123456789abcdef01234567","status":"passed","exit_code":0,"public_url":"https://runner.example.com"}`))
+		default:
+			t.Fatalf("unexpected path: %s", request.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	var output bytes.Buffer
+	result, err := RunCoordinatorWithResult(context.Background(), server.Client(), CoordinatorRequest{
+		BaseURL:   server.URL,
+		Token:     "coord-token",
+		JobID:     "xcode-debug",
+		RequestID: "run-123",
+		RepoURL:   "https://github.com/example/app.git",
+		Ref:       "refs/heads/main",
+		Commit:    "0123456789abcdef0123456789abcdef01234567",
+	}, &output)
+
+	if err != nil {
+		t.Fatalf("RunCoordinatorWithResult returned error: %v", err)
+	}
+	if result.BuildID != "build-123" || result.JobID != "xcode-debug" || result.RequestID != "run-123" || result.MachineID != "machine-123" {
+		t.Fatalf("unexpected result metadata: %+v", result)
+	}
+	if result.Status != "passed" || result.ExitCode != 0 || result.Error != "" {
+		t.Fatalf("unexpected terminal result: %+v", result)
+	}
+	if result.RepoURL != "https://github.com/example/app.git" || result.Ref != "refs/heads/main" || result.Commit != "0123456789abcdef0123456789abcdef01234567" {
+		t.Fatalf("unexpected source metadata: %+v", result)
+	}
+	if !strings.Contains(output.String(), "hello from mac") || !strings.Contains(output.String(), "[result] recorded passed") {
+		t.Fatalf("coordinator stream was not copied to output: %s", output.String())
+	}
+}
+
+func TestRunCoordinatorWithResultReturnsRecordedFailureResult(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/transwarp/dispatch":
+			response.Write([]byte(`{"kind":"coordinator","message":"accepted runner build","build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","machine_id":"machine-123","public_url":"https://runner.example.com"}` + "\n" +
+				"[build] failed with exit code 65\n" +
+				"[result] recorded failed\n" +
+				"dispatch failed: xcodebuild exited 65\n"))
+		case "/transwarp/results/run-123":
+			response.Write([]byte(`{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","machine_id":"machine-123","machine":"Mac Studio","status":"failed","exit_code":65,"error":"xcodebuild exited 65","public_url":"https://runner.example.com"}`))
+		default:
+			t.Fatalf("unexpected path: %s", request.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	result, err := RunCoordinatorWithResult(context.Background(), server.Client(), CoordinatorRequest{
+		BaseURL:   server.URL,
+		Token:     "coord-token",
+		JobID:     "xcode-debug",
+		RequestID: "run-123",
+	}, &bytes.Buffer{})
+
+	if err == nil || !strings.Contains(err.Error(), "xcodebuild exited 65") {
+		t.Fatalf("expected failed coordinator dispatch error, got %v", err)
+	}
+	if result.BuildID != "build-123" || result.Status != "failed" || result.ExitCode != 65 || result.Error != "xcodebuild exited 65" {
+		t.Fatalf("unexpected failed run result: %+v", result)
+	}
+}
+
 func TestStartReturnsFinalRetryablePublicTunnelResponse(t *testing.T) {
 	withDispatchRetryDelays(t, []time.Duration{0})
 	attempts := 0
@@ -377,17 +451,24 @@ func TestStartReturnsFinalRetryablePublicTunnelResponse(t *testing.T) {
 func TestRunCoordinatorRetriesTransientPublicTunnelNetworkError(t *testing.T) {
 	withDispatchRetryDelays(t, []time.Duration{0})
 	attempts := 0
+	dispatchAttempts := 0
 	stream := `{"kind":"coordinator","message":"accepted runner build","build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","machine_id":"machine-123","public_url":"https://runner.example.com"}` + "\n" +
 		"[result] recorded passed\n"
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		attempts++
-		if request.URL.Path != "/transwarp/dispatch" {
+		switch request.URL.Path {
+		case "/transwarp/dispatch":
+			dispatchAttempts++
+			if dispatchAttempts == 1 {
+				return nil, transientDNSError(request)
+			}
+			return jsonResponse(request, http.StatusOK, stream), nil
+		case "/transwarp/results/run-123":
+			return jsonResponse(request, http.StatusOK, `{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","machine_id":"machine-123","machine":"Mac Studio","status":"passed","exit_code":0,"public_url":"https://runner.example.com"}`), nil
+		default:
 			t.Fatalf("unexpected path: %s", request.URL.Path)
+			return nil, nil
 		}
-		if attempts == 1 {
-			return nil, transientDNSError(request)
-		}
-		return jsonResponse(request, http.StatusOK, stream), nil
 	})}
 
 	result, err := RunCoordinatorWithResult(context.Background(), client, CoordinatorRequest{
@@ -403,25 +484,35 @@ func TestRunCoordinatorRetriesTransientPublicTunnelNetworkError(t *testing.T) {
 	if result.BuildID != "build-123" || result.MachineID != "machine-123" {
 		t.Fatalf("unexpected result: %+v", result)
 	}
-	if attempts != 2 {
-		t.Fatalf("expected retry after transient tunnel DNS error, got %d attempts", attempts)
+	if dispatchAttempts != 2 {
+		t.Fatalf("expected retry after transient tunnel DNS error, got %d dispatch attempts", dispatchAttempts)
+	}
+	if attempts != 3 {
+		t.Fatalf("expected two dispatch attempts and one result lookup, got %d attempts", attempts)
 	}
 }
 
 func TestRunCoordinatorRetriesRetryablePublicTunnelResponse(t *testing.T) {
 	withDispatchRetryDelays(t, []time.Duration{0})
 	attempts := 0
+	dispatchAttempts := 0
 	stream := `{"kind":"coordinator","message":"accepted runner build","build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","machine_id":"machine-123","public_url":"https://runner.example.com"}` + "\n" +
 		"[result] recorded passed\n"
 	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		attempts++
-		if request.URL.Path != "/transwarp/dispatch" {
+		switch request.URL.Path {
+		case "/transwarp/dispatch":
+			dispatchAttempts++
+			if dispatchAttempts == 1 {
+				return jsonResponse(request, http.StatusBadGateway, "cloudflare bad gateway"), nil
+			}
+			return jsonResponse(request, http.StatusOK, stream), nil
+		case "/transwarp/results/run-123":
+			return jsonResponse(request, http.StatusOK, `{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","machine_id":"machine-123","machine":"Mac Studio","status":"passed","exit_code":0,"public_url":"https://runner.example.com"}`), nil
+		default:
 			t.Fatalf("unexpected path: %s", request.URL.Path)
+			return nil, nil
 		}
-		if attempts == 1 {
-			return jsonResponse(request, http.StatusBadGateway, "cloudflare bad gateway"), nil
-		}
-		return jsonResponse(request, http.StatusOK, stream), nil
 	})}
 
 	result, err := RunCoordinatorWithResult(context.Background(), client, CoordinatorRequest{
@@ -437,8 +528,11 @@ func TestRunCoordinatorRetriesRetryablePublicTunnelResponse(t *testing.T) {
 	if result.BuildID != "build-123" || result.MachineID != "machine-123" {
 		t.Fatalf("unexpected result: %+v", result)
 	}
-	if attempts != 2 {
-		t.Fatalf("expected retry after retryable tunnel response, got %d attempts", attempts)
+	if dispatchAttempts != 2 {
+		t.Fatalf("expected retry after retryable tunnel response, got %d dispatch attempts", dispatchAttempts)
+	}
+	if attempts != 3 {
+		t.Fatalf("expected two dispatch attempts and one result lookup, got %d attempts", attempts)
 	}
 }
 
@@ -1565,7 +1659,12 @@ func TestRunReturnsHTTPErrorBody(t *testing.T) {
 func TestRunCoordinatorDispatchesAndStreamsOutput(t *testing.T) {
 	var receivedBody string
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/transwarp/dispatch" {
+		switch request.URL.Path {
+		case "/transwarp/dispatch":
+		case "/transwarp/results/run-123":
+			response.Write([]byte(`{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","machine_id":"machine-123","machine":"Mac Studio","repo_url":"https://github.com/example/app.git","ref":"refs/heads/main","commit":"abc123","status":"passed","exit_code":0,"public_url":"https://runner.example.com"}`))
+			return
+		default:
 			t.Fatalf("unexpected path: %s", request.URL.Path)
 		}
 		if request.Header.Get("Authorization") != "Bearer coord-token" {
@@ -1767,6 +1866,10 @@ func TestRunCoordinatorWithResultReturnsDispatchIDsOnStreamedFailure(t *testing.
 
 func TestRunCoordinatorIgnoresBuildLogJSONWhenReturningDispatchIDs(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/transwarp/results/run-123" {
+			response.Write([]byte(`{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","machine_id":"machine-123","machine":"Mac Studio","status":"passed","exit_code":0,"public_url":"https://runner.example.com"}`))
+			return
+		}
 		response.Write([]byte(`{"kind":"log","message":"user output","build_id":"build-spoof","machine_id":"machine-spoof","public_url":"https://spoof.example.com"}` + "\n"))
 		response.Write([]byte(`{"build_id":"build-also-spoofed","machine_id":"machine-also-spoofed","public_url":"https://also-spoofed.example.com"}` + "\n"))
 		response.Write([]byte(`{"kind":"coordinator","message":"accepted runner build","build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","machine_id":"machine-123","public_url":"https://runner.example.com"}` + "\n"))
@@ -1967,7 +2070,6 @@ func TestRunCoordinatorRejectsAcceptedMetadataForDifferentPinnedMachine(t *testi
 }
 
 func TestRunCoordinatorDoesNotCancelAfterSuccessfulStreamEOF(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
 	cancelled := false
 	stream := "" +
 		`{"kind":"coordinator","message":"accepted runner build","build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","machine_id":"machine-123","public_url":"https://runner.example.com"}` + "\n" +
@@ -1979,9 +2081,11 @@ func TestRunCoordinatorDoesNotCancelAfterSuccessfulStreamEOF(t *testing.T) {
 				StatusCode: http.StatusOK,
 				Status:     "200 OK",
 				Header:     make(http.Header),
-				Body:       &cancelAtEOFReadCloser{reader: strings.NewReader(stream), cancel: cancel},
+				Body:       io.NopCloser(strings.NewReader(stream)),
 				Request:    request,
 			}, nil
+		case "/transwarp/results/run-123":
+			return jsonResponse(request, http.StatusOK, `{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","machine_id":"machine-123","machine":"Mac Studio","status":"passed","exit_code":0,"public_url":"https://runner.example.com"}`), nil
 		case "/transwarp/dispatches/run-123/cancel":
 			cancelled = true
 			return &http.Response{
@@ -1997,7 +2101,7 @@ func TestRunCoordinatorDoesNotCancelAfterSuccessfulStreamEOF(t *testing.T) {
 		}
 	})}
 
-	result, err := RunCoordinatorWithResult(ctx, client, CoordinatorRequest{
+	result, err := RunCoordinatorWithResult(context.Background(), client, CoordinatorRequest{
 		BaseURL:   "https://coordinator.example.com",
 		Token:     "coord-token",
 		JobID:     "xcode-debug",
@@ -2090,23 +2194,6 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
 	return fn(request)
-}
-
-type cancelAtEOFReadCloser struct {
-	reader *strings.Reader
-	cancel context.CancelFunc
-}
-
-func (reader *cancelAtEOFReadCloser) Read(data []byte) (int, error) {
-	n, err := reader.reader.Read(data)
-	if err == io.EOF {
-		reader.cancel()
-	}
-	return n, err
-}
-
-func (reader *cancelAtEOFReadCloser) Close() error {
-	return nil
 }
 
 func withDispatchRetryDelays(t *testing.T, delays []time.Duration) {

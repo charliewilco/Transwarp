@@ -47,6 +47,7 @@ write_output() {
 	printf 'TRANSWARP_JOB=%s\n' "${TRANSWARP_JOB:-}"
 	printf 'TRANSWARP_MIN_CPU_COUNT=%s\n' "${TRANSWARP_MIN_CPU_COUNT:-}"
 	printf 'TRANSWARP_MIN_MEMORY_BYTES=%s\n' "${TRANSWARP_MIN_MEMORY_BYTES:-}"
+	printf 'TRANSWARP_REQUIRE_PUBLIC_URL=%s\n' "${TRANSWARP_REQUIRE_PUBLIC_URL:-}"
 	printf '%s\n' '---'
 } >> "$TRANSWARP_ACTION_GO_LOG"
 
@@ -86,6 +87,8 @@ case "$*" in
 				write_output build-id "coordinator-build-from-fake-go"
 				write_output machine-id "${TRANSWARP_MACHINE_ID:-coordinator-machine-from-fake-go}"
 				write_output public-url "https://runner.example.com"
+				write_output status "passed"
+				write_output exit-code "0"
 			else
 				write_output build-id "build-from-fake-go"
 				write_output status "passed"
@@ -133,6 +136,7 @@ run_action() {
 		INPUT_MIN_CPU_COUNT="${INPUT_MIN_CPU_COUNT:-}" \
 		INPUT_MIN_MEMORY_BYTES="${INPUT_MIN_MEMORY_BYTES:-}" \
 		INPUT_MIN_XCODE_VERSION="${INPUT_MIN_XCODE_VERSION:-}" \
+		INPUT_REQUIRE_PUBLIC_URL="${INPUT_REQUIRE_PUBLIC_URL:-true}" \
 		INPUT_REPORT_URL="${INPUT_REPORT_URL:-}" \
 		INPUT_REPORT_TOKEN="${INPUT_REPORT_TOKEN:-}" \
 		INPUT_TIMEOUT="${INPUT_TIMEOUT:-30m}" \
@@ -250,11 +254,14 @@ grep -q 'cmd=run github.com/charliewilco/transwarp/cmd/transwarp-diagnose@local 
 grep -q 'TRANSWARP_COORDINATOR_URL=https://coordinator.example.com' "$GO_LOG"
 grep -q 'TRANSWARP_COORDINATOR_TOKEN=coordinator-token' "$GO_LOG"
 grep -q '^TRANSWARP_TOKEN=$' "$GO_LOG"
+grep -q '^TRANSWARP_REQUIRE_PUBLIC_URL=true$' "$GO_LOG"
 expect_output request-id 1234-2-transwarp-build
 expect_output build-id coordinator-build-from-fake-go
 expect_output job-id xcode-debug
 expect_output machine-id coordinator-machine-from-fake-go
 expect_output public-url https://runner.example.com
+expect_output status passed
+expect_output exit-code 0
 
 (
 	INPUT_MODE=coordinator
