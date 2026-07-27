@@ -7,14 +7,23 @@ struct ContentView: View {
 		VStack(spacing: 0) {
 			StatusHeaderView()
 			Divider()
-			HSplitView {
-				BuildQueueView()
-					.frame(minWidth: 280, idealWidth: 320)
+			HStack(spacing: 0) {
+				ScrollView {
+					BuildQueueView()
+						.frame(maxWidth: .infinity, alignment: .leading)
+						.padding(20)
+				}
+				.frame(width: 440)
+				.background(.regularMaterial)
+				.scrollIndicators(.visible)
+
+				Divider()
+
 				LogView()
-					.frame(minWidth: 520)
+					.frame(maxWidth: .infinity, maxHeight: .infinity)
 			}
 		}
-		.frame(minWidth: 860, minHeight: 560)
+		.frame(minWidth: 1040, minHeight: 680)
 	}
 }
 

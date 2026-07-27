@@ -45,24 +45,22 @@ struct CIIntegrationView: View {
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 8) {
-			HStack {
-				Text("CI Workflows")
-					.font(.headline)
-				Spacer()
-				Picker("Mode", selection: $mode) {
-					Text("Self-Hosted")
-						.tag(GitHubActionWorkflow.Mode.selfHosted)
-					Text("Direct")
-						.tag(GitHubActionWorkflow.Mode.direct)
-					Text("Coordinator")
-						.tag(GitHubActionWorkflow.Mode.coordinator)
-					Text("Release")
-						.tag(GitHubActionWorkflow.Mode.releaseEvidence)
-				}
-				.labelsHidden()
-				.pickerStyle(.segmented)
-				.frame(width: 376)
+			Text("CI Workflows")
+				.font(.headline)
+
+			Picker("Mode", selection: $mode) {
+				Text("Self-Hosted")
+					.tag(GitHubActionWorkflow.Mode.selfHosted)
+				Text("Direct")
+					.tag(GitHubActionWorkflow.Mode.direct)
+				Text("Coordinator")
+					.tag(GitHubActionWorkflow.Mode.coordinator)
+				Text("Release")
+					.tag(GitHubActionWorkflow.Mode.releaseEvidence)
 			}
+			.labelsHidden()
+			.pickerStyle(.segmented)
+			.frame(maxWidth: .infinity)
 
 			if workflow != nil {
 				HStack {

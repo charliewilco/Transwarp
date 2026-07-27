@@ -6,33 +6,52 @@ struct LogView: View {
 
 	var body: some View {
 		VStack(alignment: .leading, spacing: 12) {
-			Text("Runner Logs")
-				.font(.headline)
+			HStack {
+				Text("Runner Logs")
+					.font(.headline)
+				Spacer()
+				Text("\(model.events.count) events")
+					.font(.caption)
+					.foregroundStyle(.secondary)
+			}
 
-			ScrollViewReader { proxy in
-				ScrollView {
-					LazyVStack(alignment: .leading, spacing: 6) {
-						ForEach(model.events) { event in
-							Text(logLine(for: event))
-								.font(.system(.caption, design: .monospaced))
-								.textSelection(.enabled)
-								.frame(maxWidth: .infinity, alignment: .leading)
-								.id(event.id)
+			ZStack {
+				RoundedRectangle(cornerRadius: 8)
+					.fill(Color(nsColor: .textBackgroundColor))
+
+				if model.events.isEmpty {
+					ContentUnavailableView(
+						"No runner logs yet",
+						systemImage: "terminal",
+						description: Text("Start Transwarp or run a test build to see streamed output here.")
+					)
+					.padding()
+				} else {
+					ScrollViewReader { proxy in
+						ScrollView {
+							LazyVStack(alignment: .leading, spacing: 6) {
+								ForEach(model.events) { event in
+									Text(logLine(for: event))
+										.font(.system(.caption, design: .monospaced))
+										.textSelection(.enabled)
+										.frame(maxWidth: .infinity, alignment: .leading)
+										.id(event.id)
+								}
+							}
+							.padding(12)
+						}
+						.onChange(of: model.events.count) {
+							guard let last = model.events.last else {
+								return
+							}
+							proxy.scrollTo(last.id, anchor: .bottom)
 						}
 					}
-					.padding(12)
-				}
-				.background(Color(nsColor: .textBackgroundColor))
-				.clipShape(RoundedRectangle(cornerRadius: 6))
-				.onChange(of: model.events.count) {
-					guard let last = model.events.last else {
-						return
-					}
-					proxy.scrollTo(last.id, anchor: .bottom)
 				}
 			}
+			.clipShape(RoundedRectangle(cornerRadius: 8))
 		}
-		.padding(16)
+		.padding(20)
 	}
 
 	private func logLine(for event: RunnerEvent) -> String {

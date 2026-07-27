@@ -42,7 +42,6 @@ struct BuildQueueView: View {
 				.listStyle(.inset)
 			}
 		}
-		.padding(16)
 	}
 }
 
