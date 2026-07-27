@@ -544,6 +544,71 @@ func TestRunWithResultRejectsUnsafeDirectStreamMetadata(t *testing.T) {
 	}
 }
 
+func TestGetStatusRejectsInconsistentResultMetadata(t *testing.T) {
+	tests := []struct {
+		name      string
+		body      string
+		wantError string
+	}{
+		{
+			name:      "mismatched build id",
+			body:      `{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","status":"passed","result":{"build_id":"other-build","job_id":"xcode-debug","request_id":"run-123","exit_code":0}}`,
+			wantError: "result build_id",
+		},
+		{
+			name:      "mismatched job id",
+			body:      `{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","status":"passed","result":{"build_id":"build-123","job_id":"other-job","request_id":"run-123","exit_code":0}}`,
+			wantError: "result job_id",
+		},
+		{
+			name:      "mismatched request id",
+			body:      `{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","status":"passed","result":{"build_id":"build-123","job_id":"xcode-debug","request_id":"other-run","exit_code":0}}`,
+			wantError: "result request_id",
+		},
+		{
+			name:      "passed with error",
+			body:      `{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","status":"passed","result":{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","exit_code":0,"error":"unexpected"}}`,
+			wantError: "passed build status",
+		},
+		{
+			name:      "failed without error or code",
+			body:      `{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","status":"failed","result":{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","exit_code":0}}`,
+			wantError: "failed build status",
+		},
+		{
+			name:      "canceled without canonical error",
+			body:      `{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","status":"canceled","result":{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","exit_code":-1,"error":"stopped"}}`,
+			wantError: "canceled build status",
+		},
+		{
+			name:      "running with terminal result",
+			body:      `{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","status":"running","result":{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","exit_code":0}}`,
+			wantError: "must not include",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+				if request.URL.Path != "/v1/builds/build-123" {
+					t.Fatalf("unexpected path: %s", request.URL.Path)
+				}
+				response.Write([]byte(test.body))
+			}))
+			defer server.Close()
+
+			_, err := GetStatus(context.Background(), server.Client(), Request{
+				BaseURL: server.URL,
+				Token:   "token",
+				BuildID: "build-123",
+			})
+			if err == nil || !strings.Contains(err.Error(), test.wantError) {
+				t.Fatalf("expected %q error, got %v", test.wantError, err)
+			}
+		})
+	}
+}
+
 func TestValidateBuildIDRejectsUnsafeValue(t *testing.T) {
 	err := Request{
 		BaseURL: "https://runner.example.com",

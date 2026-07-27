@@ -479,13 +479,38 @@ func validateBuildStatusResponse(status BuildStatusResponse) error {
 		if err := requestmeta.ValidateBuildID(status.Result.BuildID); err != nil {
 			return err
 		}
+		if status.Result.BuildID != status.BuildID {
+			return fmt.Errorf("build status result build_id %q does not match build_id %q", status.Result.BuildID, status.BuildID)
+		}
 		if err := requestmeta.ValidateJobID(status.Result.JobID); err != nil {
 			return err
+		}
+		if status.Result.JobID != status.JobID {
+			return fmt.Errorf("build status result job_id %q does not match job_id %q", status.Result.JobID, status.JobID)
 		}
 		if strings.TrimSpace(status.Result.RequestID) != "" {
 			if err := requestmeta.ValidateRequestID(status.Result.RequestID); err != nil {
 				return err
 			}
+		}
+		if status.RequestID != "" && status.Result.RequestID != "" && status.Result.RequestID != status.RequestID {
+			return fmt.Errorf("build status result request_id %q does not match request_id %q", status.Result.RequestID, status.RequestID)
+		}
+		switch status.Status {
+		case "passed":
+			if status.Result.ExitCode != 0 || strings.TrimSpace(status.Result.Error) != "" {
+				return errors.New("passed build status results must have exit_code 0 and no error")
+			}
+		case "failed":
+			if status.Result.ExitCode == 0 && strings.TrimSpace(status.Result.Error) == "" {
+				return errors.New("failed build status results must include a nonzero exit_code or error")
+			}
+		case "canceled":
+			if status.Result.Error != "build canceled" {
+				return errors.New(`canceled build status results must use error "build canceled"`)
+			}
+		default:
+			return fmt.Errorf("build status %q must not include a terminal result", status.Status)
 		}
 	}
 	return nil
