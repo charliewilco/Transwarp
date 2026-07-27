@@ -68,6 +68,9 @@ type RunResult struct {
 	JobID     string
 	MachineID string
 	PublicURL string
+	Status    string
+	ExitCode  int
+	Error     string
 }
 
 type coordinatorStreamResult struct {
@@ -75,6 +78,24 @@ type coordinatorStreamResult struct {
 	JobID     string
 	MachineID string
 	PublicURL string
+}
+
+type CoordinatorBuildResult struct {
+	BuildID    string    `json:"build_id"`
+	JobID      string    `json:"job_id"`
+	RequestID  string    `json:"request_id"`
+	MachineID  string    `json:"machine_id"`
+	Machine    string    `json:"machine"`
+	RepoURL    string    `json:"repo_url,omitempty"`
+	Ref        string    `json:"ref,omitempty"`
+	Commit     string    `json:"commit,omitempty"`
+	StartedAt  time.Time `json:"started_at"`
+	EndedAt    time.Time `json:"ended_at"`
+	ExitCode   int       `json:"exit_code"`
+	Status     string    `json:"status"`
+	Error      string    `json:"error,omitempty"`
+	PublicURL  string    `json:"public_url,omitempty"`
+	DurationMS int64     `json:"duration_ms"`
 }
 
 var dottedVersionPattern = regexp.MustCompile(`\d+(?:\.\d+)*`)
@@ -380,6 +401,42 @@ func CancelCoordinator(ctx context.Context, client *http.Client, request Coordin
 	return nil
 }
 
+func GetCoordinatorResult(ctx context.Context, client *http.Client, request CoordinatorRequest) (CoordinatorBuildResult, error) {
+	if err := request.ValidateResultLookup(); err != nil {
+		return CoordinatorBuildResult{}, err
+	}
+	if request.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, request.Timeout)
+		defer cancel()
+	}
+	if client == nil {
+		client = tunnelnet.NoRedirectHTTPClient()
+	}
+
+	response, err := doDispatchRequest(ctx, client, request.BaseURL, func(ctx context.Context) (*http.Request, error) {
+		return request.newRequest(ctx, http.MethodGet, fmt.Sprintf("/transwarp/results/%s", url.PathEscape(request.RequestID)), nil)
+	})
+	if err != nil {
+		return CoordinatorBuildResult{}, err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		data, _ := io.ReadAll(io.LimitReader(response.Body, 16*1024))
+		return CoordinatorBuildResult{}, fmt.Errorf("coordinator result lookup failed with %s: %s", response.Status, strings.TrimSpace(string(data)))
+	}
+
+	var result CoordinatorBuildResult
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		return CoordinatorBuildResult{}, err
+	}
+	if err := result.ValidateForRequest(request); err != nil {
+		return CoordinatorBuildResult{}, err
+	}
+	return result, nil
+}
+
 func (request Request) ValidateStart() error {
 	if strings.TrimSpace(request.BaseURL) == "" {
 		return errors.New("base URL is required")
@@ -548,6 +605,14 @@ func (request CoordinatorRequest) Validate() error {
 }
 
 func (request CoordinatorRequest) ValidateCancel() error {
+	return request.validateRequestIDOnly()
+}
+
+func (request CoordinatorRequest) ValidateResultLookup() error {
+	return request.validateRequestIDOnly()
+}
+
+func (request CoordinatorRequest) validateRequestIDOnly() error {
 	if strings.TrimSpace(request.BaseURL) == "" {
 		return errors.New("coordinator URL is required")
 	}
@@ -574,6 +639,70 @@ func (request CoordinatorRequest) ValidateCancel() error {
 			return err
 		}
 		if err := headerutil.ValidateValue(request.AccessClientSecret, "Cloudflare Access client secret"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (result CoordinatorBuildResult) RunResult() RunResult {
+	return RunResult{
+		RequestID: result.RequestID,
+		BuildID:   result.BuildID,
+		JobID:     result.JobID,
+		MachineID: result.MachineID,
+		PublicURL: result.PublicURL,
+		Status:    result.Status,
+		ExitCode:  result.ExitCode,
+		Error:     result.Error,
+	}
+}
+
+func (result CoordinatorBuildResult) StatusError() error {
+	switch result.Status {
+	case "passed":
+		return nil
+	case "failed":
+		if strings.TrimSpace(result.Error) != "" {
+			return errors.New(result.Error)
+		}
+		return errors.New("failed")
+	case "canceled":
+		return errors.New("canceled")
+	default:
+		return fmt.Errorf("unknown result status %q", result.Status)
+	}
+}
+
+func (result CoordinatorBuildResult) ValidateForRequest(request CoordinatorRequest) error {
+	if err := requestmeta.ValidateBuildID(result.BuildID); err != nil {
+		return err
+	}
+	if err := requestmeta.ValidateJobID(result.JobID); err != nil {
+		return err
+	}
+	if strings.TrimSpace(request.JobID) != "" && result.JobID != request.JobID {
+		return fmt.Errorf("coordinator result job_id %q does not match requested job_id %q", result.JobID, request.JobID)
+	}
+	if err := requestmeta.ValidateRequestID(result.RequestID); err != nil {
+		return err
+	}
+	if result.RequestID != request.RequestID {
+		return fmt.Errorf("coordinator result request_id %q does not match requested request_id %q", result.RequestID, request.RequestID)
+	}
+	if err := requestmeta.ValidateMachineID(result.MachineID); err != nil {
+		return err
+	}
+	if strings.TrimSpace(request.MachineID) != "" && result.MachineID != request.MachineID {
+		return fmt.Errorf("coordinator result machine_id %q does not match requested machine_id %q", result.MachineID, request.MachineID)
+	}
+	switch result.Status {
+	case "passed", "failed", "canceled":
+	default:
+		return fmt.Errorf("coordinator result status %q is invalid", result.Status)
+	}
+	if strings.TrimSpace(result.PublicURL) != "" {
+		if err := endpoint.ValidateBaseURL(result.PublicURL, "public_url"); err != nil {
 			return err
 		}
 	}

@@ -251,6 +251,99 @@ func TestStartDoesNotRetryLoopbackRetryableResponse(t *testing.T) {
 	}
 }
 
+func TestGetCoordinatorResultFetchesRecordedResult(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/transwarp/results/run-123" {
+			t.Fatalf("unexpected path: %s", request.URL.Path)
+		}
+		if request.Header.Get("Authorization") != "Bearer coord-token" {
+			t.Fatalf("unexpected authorization: %s", request.Header.Get("Authorization"))
+		}
+		if request.Header.Get("CF-Access-Client-Id") != "access-id" {
+			t.Fatalf("unexpected access client id: %s", request.Header.Get("CF-Access-Client-Id"))
+		}
+		if request.Header.Get("CF-Access-Client-Secret") != "access-secret" {
+			t.Fatalf("unexpected access client secret: %s", request.Header.Get("CF-Access-Client-Secret"))
+		}
+		response.Write([]byte(`{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","machine_id":"machine-123","machine":"Mac Studio","status":"passed","exit_code":0,"public_url":"https://runner.example.com"}`))
+	}))
+	defer server.Close()
+
+	result, err := GetCoordinatorResult(context.Background(), server.Client(), CoordinatorRequest{
+		BaseURL:            server.URL,
+		Token:              "coord-token",
+		AccessClientID:     "access-id",
+		AccessClientSecret: "access-secret",
+		JobID:              "xcode-debug",
+		RequestID:          "run-123",
+	})
+
+	if err != nil {
+		t.Fatalf("GetCoordinatorResult returned error: %v", err)
+	}
+	runResult := result.RunResult()
+	if runResult.BuildID != "build-123" || runResult.JobID != "xcode-debug" || runResult.MachineID != "machine-123" || runResult.Status != "passed" {
+		t.Fatalf("unexpected run result: %+v", runResult)
+	}
+	if err := result.StatusError(); err != nil {
+		t.Fatalf("passed result returned status error: %v", err)
+	}
+}
+
+func TestGetCoordinatorResultReturnsFailedStatusError(t *testing.T) {
+	result := CoordinatorBuildResult{
+		BuildID:   "build-123",
+		JobID:     "xcode-debug",
+		RequestID: "run-123",
+		MachineID: "machine-123",
+		Status:    "failed",
+		ExitCode:  65,
+		Error:     "xcodebuild exited 65",
+	}
+
+	if err := result.ValidateForRequest(CoordinatorRequest{RequestID: "run-123"}); err != nil {
+		t.Fatalf("ValidateForRequest returned error: %v", err)
+	}
+	err := result.StatusError()
+	if err == nil || !strings.Contains(err.Error(), "xcodebuild exited 65") {
+		t.Fatalf("expected failed result status error, got %v", err)
+	}
+}
+
+func TestGetCoordinatorResultRejectsMismatchedResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Write([]byte(`{"build_id":"build-123","job_id":"xcode-debug","request_id":"other-run","machine_id":"machine-123","machine":"Mac Studio","status":"passed","exit_code":0}`))
+	}))
+	defer server.Close()
+
+	_, err := GetCoordinatorResult(context.Background(), server.Client(), CoordinatorRequest{
+		BaseURL:   server.URL,
+		Token:     "coord-token",
+		RequestID: "run-123",
+	})
+
+	if err == nil || !strings.Contains(err.Error(), "does not match requested request_id") {
+		t.Fatalf("expected mismatched request_id error, got %v", err)
+	}
+}
+
+func TestGetCoordinatorResultReturnsHTTPErrorBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		http.Error(response, `{"error":"unknown request_id"}`, http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	_, err := GetCoordinatorResult(context.Background(), server.Client(), CoordinatorRequest{
+		BaseURL:   server.URL,
+		Token:     "coord-token",
+		RequestID: "run-123",
+	})
+
+	if err == nil || !strings.Contains(err.Error(), "404 Not Found") || !strings.Contains(err.Error(), "unknown request_id") {
+		t.Fatalf("expected result lookup HTTP error body, got %v", err)
+	}
+}
+
 func TestStartReturnsFinalRetryablePublicTunnelResponse(t *testing.T) {
 	withDispatchRetryDelays(t, []time.Duration{0})
 	attempts := 0

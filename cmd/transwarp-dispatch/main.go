@@ -32,6 +32,7 @@ func main() {
 	}
 	minXcodeVersion := os.Getenv("TRANSWARP_MIN_XCODE_VERSION")
 	timeout := flag.Duration("timeout", 0, "overall dispatch timeout, for example 30m")
+	resultLookup := flag.Bool("result", false, "fetch a recorded coordinator result for -request-id")
 
 	flag.StringVar(&request.BaseURL, "url", os.Getenv("TRANSWARP_URL"), "Transwarp public or local base URL")
 	flag.StringVar(&request.Token, "token", os.Getenv("TRANSWARP_TOKEN"), "Transwarp bearer token")
@@ -60,24 +61,39 @@ func main() {
 	defer stop()
 
 	result := dispatch.RunResult{RequestID: request.RequestID, BuildID: request.BuildID}
-	if coordinatorURL != "" {
-		result, err = dispatch.RunCoordinatorWithResult(ctx, nil, dispatch.CoordinatorRequest{
-			BaseURL:            coordinatorURL,
-			Token:              coordinatorToken,
-			AccessClientID:     request.AccessClientID,
-			AccessClientSecret: request.AccessClientSecret,
-			MachineID:          machineID,
-			JobID:              request.JobID,
-			RequestID:          request.RequestID,
-			RepoURL:            request.RepoURL,
-			Ref:                request.Ref,
-			Commit:             request.Commit,
-			MinCPUCount:        minCPUCount,
-			MinMemoryBytes:     minMemoryBytes,
-			MinXcodeVersion:    minXcodeVersion,
-			Timeout:            request.Timeout,
-			Cancel:             request.Cancel,
-		}, os.Stdout)
+	var resultStatusErr error
+	coordinatorRequest := dispatch.CoordinatorRequest{
+		BaseURL:            coordinatorURL,
+		Token:              coordinatorToken,
+		AccessClientID:     request.AccessClientID,
+		AccessClientSecret: request.AccessClientSecret,
+		MachineID:          machineID,
+		JobID:              request.JobID,
+		RequestID:          request.RequestID,
+		RepoURL:            request.RepoURL,
+		Ref:                request.Ref,
+		Commit:             request.Commit,
+		MinCPUCount:        minCPUCount,
+		MinMemoryBytes:     minMemoryBytes,
+		MinXcodeVersion:    minXcodeVersion,
+		Timeout:            request.Timeout,
+		Cancel:             request.Cancel,
+	}
+	if *resultLookup {
+		if request.Cancel {
+			err = fmt.Errorf("-result cannot be combined with -cancel")
+		} else if coordinatorURL == "" {
+			err = fmt.Errorf("-result requires -coordinator-url")
+		} else {
+			var coordinatorResult dispatch.CoordinatorBuildResult
+			coordinatorResult, err = dispatch.GetCoordinatorResult(ctx, nil, coordinatorRequest)
+			if err == nil {
+				result = coordinatorResult.RunResult()
+				resultStatusErr = coordinatorResult.StatusError()
+			}
+		}
+	} else if coordinatorURL != "" {
+		result, err = dispatch.RunCoordinatorWithResult(ctx, nil, coordinatorRequest, os.Stdout)
 	} else {
 		result, err = dispatch.RunWithResult(ctx, nil, request, os.Stdout)
 	}
@@ -93,6 +109,10 @@ func main() {
 		os.Exit(1)
 	}
 	writeResultSummary(os.Stdout, result)
+	if resultStatusErr != nil {
+		fmt.Fprintln(os.Stderr, resultStatusErr)
+		os.Exit(1)
+	}
 }
 
 func writeGitHubOutputs(path string, result dispatch.RunResult) error {
@@ -130,6 +150,14 @@ func writeGitHubOutputs(path string, result dispatch.RunResult) error {
 			return err
 		}
 	}
+	if result.Status != "" {
+		if err := writeGitHubOutputValue(file, "status", result.Status); err != nil {
+			return err
+		}
+		if err := writeGitHubOutputValue(file, "exit-code", fmt.Sprintf("%d", result.ExitCode)); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -148,6 +176,13 @@ func writeResultSummary(output io.Writer, result dispatch.RunResult) {
 	}
 	if result.PublicURL != "" {
 		fmt.Fprintf(output, "[result] public_url %s\n", result.PublicURL)
+	}
+	if result.Status != "" {
+		fmt.Fprintf(output, "[result] status %s\n", result.Status)
+		fmt.Fprintf(output, "[result] exit_code %d\n", result.ExitCode)
+	}
+	if result.Error != "" {
+		fmt.Fprintf(output, "[result] error %s\n", result.Error)
 	}
 }
 
