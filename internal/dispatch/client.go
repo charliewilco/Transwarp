@@ -75,9 +75,12 @@ type RunResult struct {
 }
 
 type tailResult struct {
-	Status   string
-	ExitCode int
-	Error    string
+	RequestID string
+	BuildID   string
+	JobID     string
+	Status    string
+	ExitCode  int
+	Error     string
 }
 
 type coordinatorStreamResult struct {
@@ -132,6 +135,24 @@ type Event struct {
 	PublicURL string    `json:"public_url,omitempty"`
 	Sequence  int       `json:"sequence,omitempty"`
 	Time      time.Time `json:"time"`
+}
+
+type BuildStatusResponse struct {
+	BuildID      string             `json:"build_id"`
+	JobID        string             `json:"job_id"`
+	RequestID    string             `json:"request_id,omitempty"`
+	Status       string             `json:"status"`
+	ReportStatus string             `json:"report_status,omitempty"`
+	ReportError  string             `json:"report_error,omitempty"`
+	Result       *BuildStatusResult `json:"result,omitempty"`
+}
+
+type BuildStatusResult struct {
+	BuildID   string `json:"build_id"`
+	JobID     string `json:"job_id"`
+	RequestID string `json:"request_id,omitempty"`
+	ExitCode  int    `json:"exit_code"`
+	Error     string `json:"error,omitempty"`
 }
 
 func Run(ctx context.Context, client *http.Client, request Request, output io.Writer) error {
@@ -335,6 +356,11 @@ func tailWithResult(ctx context.Context, client *http.Client, request Request, o
 	if client == nil {
 		client = tunnelnet.NoRedirectHTTPClient()
 	}
+	if request.JobID == "" {
+		if status, err := GetStatus(ctx, client, request); err == nil {
+			mergeStatusResult(&result, status)
+		}
+	}
 
 	after := request.AfterSequence
 	for {
@@ -352,11 +378,7 @@ func tailWithResult(ctx context.Context, client *http.Client, request Request, o
 
 		eventsResult, lastSequence, err := readEvents(response.Body, output)
 		response.Body.Close()
-		if eventsResult.Status != "" {
-			result.Status = eventsResult.Status
-			result.ExitCode = eventsResult.ExitCode
-			result.Error = eventsResult.Error
-		}
+		mergeTailResult(&result, eventsResult)
 		if lastSequence > after {
 			after = lastSequence
 		}
@@ -373,10 +395,44 @@ func tailWithResult(ctx context.Context, client *http.Client, request Request, o
 		if !errors.Is(err, errMissingTerminalStatus) {
 			return result, err
 		}
-		if result.Status != "" {
-			return result, statusError(result.Error)
+		if status, statusErr := GetStatus(ctx, client, request); statusErr == nil {
+			mergeStatusResult(&result, status)
+		}
+		if terminalRunResult(result) {
+			return result, runResultError(result)
 		}
 	}
+}
+
+func GetStatus(ctx context.Context, client *http.Client, request Request) (BuildStatusResponse, error) {
+	if err := request.ValidateBuildID(); err != nil {
+		return BuildStatusResponse{}, err
+	}
+	if client == nil {
+		client = tunnelnet.NoRedirectHTTPClient()
+	}
+
+	response, err := doDispatchRequest(ctx, client, request.BaseURL, func(ctx context.Context) (*http.Request, error) {
+		return request.newRequest(ctx, http.MethodGet, fmt.Sprintf("/v1/builds/%s", url.PathEscape(request.BuildID)), nil)
+	})
+	if err != nil {
+		return BuildStatusResponse{}, err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		data, _ := io.ReadAll(io.LimitReader(response.Body, 16*1024))
+		return BuildStatusResponse{}, fmt.Errorf("status failed with %s: %s", response.Status, strings.TrimSpace(string(data)))
+	}
+
+	var status BuildStatusResponse
+	if err := json.NewDecoder(response.Body).Decode(&status); err != nil {
+		return BuildStatusResponse{}, err
+	}
+	if err := validateBuildStatusResponse(status); err != nil {
+		return BuildStatusResponse{}, err
+	}
+	return status, nil
 }
 
 func Cancel(ctx context.Context, client *http.Client, request Request) error {
@@ -400,6 +456,113 @@ func Cancel(ctx context.Context, client *http.Client, request Request) error {
 		return fmt.Errorf("cancel failed with %s: %s", response.Status, strings.TrimSpace(string(data)))
 	}
 	return nil
+}
+
+func validateBuildStatusResponse(status BuildStatusResponse) error {
+	if err := requestmeta.ValidateBuildID(status.BuildID); err != nil {
+		return err
+	}
+	if err := requestmeta.ValidateJobID(status.JobID); err != nil {
+		return err
+	}
+	if strings.TrimSpace(status.RequestID) != "" {
+		if err := requestmeta.ValidateRequestID(status.RequestID); err != nil {
+			return err
+		}
+	}
+	switch status.Status {
+	case "queued", "running", "passed", "failed", "canceled":
+	default:
+		return fmt.Errorf("build status %q is invalid", status.Status)
+	}
+	if status.Result != nil {
+		if err := requestmeta.ValidateBuildID(status.Result.BuildID); err != nil {
+			return err
+		}
+		if err := requestmeta.ValidateJobID(status.Result.JobID); err != nil {
+			return err
+		}
+		if strings.TrimSpace(status.Result.RequestID) != "" {
+			if err := requestmeta.ValidateRequestID(status.Result.RequestID); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func mergeStatusResult(result *RunResult, status BuildStatusResponse) {
+	if status.BuildID != "" {
+		result.BuildID = status.BuildID
+	}
+	if status.JobID != "" {
+		result.JobID = status.JobID
+	}
+	if status.RequestID != "" {
+		result.RequestID = status.RequestID
+	}
+	switch status.Status {
+	case "passed", "failed", "canceled":
+		result.Status = status.Status
+	}
+	if status.Result != nil {
+		if status.Result.BuildID != "" {
+			result.BuildID = status.Result.BuildID
+		}
+		if status.Result.JobID != "" {
+			result.JobID = status.Result.JobID
+		}
+		if status.Result.RequestID != "" {
+			result.RequestID = status.Result.RequestID
+		}
+		result.ExitCode = status.Result.ExitCode
+		result.Error = status.Result.Error
+	}
+	if status.ReportError != "" {
+		result.Error = "report failed: " + status.ReportError
+	}
+}
+
+func mergeTailResult(result *RunResult, tail tailResult) {
+	if tail.BuildID != "" {
+		result.BuildID = tail.BuildID
+	}
+	if tail.JobID != "" {
+		result.JobID = tail.JobID
+	}
+	if tail.RequestID != "" {
+		result.RequestID = tail.RequestID
+	}
+	if tail.Status != "" {
+		result.Status = tail.Status
+		result.ExitCode = tail.ExitCode
+		result.Error = tail.Error
+	}
+}
+
+func terminalRunResult(result RunResult) bool {
+	switch result.Status {
+	case "passed", "failed", "canceled":
+		return true
+	default:
+		return strings.TrimSpace(result.Error) != ""
+	}
+}
+
+func runResultError(result RunResult) error {
+	if strings.TrimSpace(result.Error) != "" {
+		return errors.New(result.Error)
+	}
+	switch result.Status {
+	case "passed":
+		return nil
+	case "failed":
+		return errors.New("failed")
+	case "canceled":
+		return errors.New("build canceled")
+	default:
+		return nil
+	}
 }
 
 func CancelCoordinator(ctx context.Context, client *http.Client, request CoordinatorRequest) error {
@@ -845,23 +1008,37 @@ func readEvents(reader io.Reader, output io.Writer) (tailResult, int, error) {
 			fmt.Fprintln(output, string(line))
 			continue
 		}
+		if err := validateEventMetadata(event); err != nil {
+			return result, lastSequence, err
+		}
 
 		writeEvent(output, event)
 		if event.Sequence > lastSequence {
 			lastSequence = event.Sequence
 		}
+		if event.BuildID != "" {
+			result.BuildID = event.BuildID
+		}
+		if event.JobID != "" {
+			result.JobID = event.JobID
+		}
+		if event.RequestID != "" {
+			result.RequestID = event.RequestID
+		}
 		if event.Kind == "build" {
 			switch {
 			case event.Message == "passed":
-				result = tailResult{Status: "passed", ExitCode: 0}
+				result.Status = "passed"
+				result.ExitCode = 0
+				result.Error = ""
 			case event.Message == "canceled":
-				result = tailResult{Status: "canceled", ExitCode: -1, Error: "build canceled"}
+				result.Status = "canceled"
+				result.ExitCode = -1
+				result.Error = "build canceled"
 			case strings.HasPrefix(event.Message, "failed"):
-				result = tailResult{
-					Status:   "failed",
-					ExitCode: exitCodeFromBuildMessage(event.Message),
-					Error:    event.Message,
-				}
+				result.Status = "failed"
+				result.ExitCode = exitCodeFromBuildMessage(event.Message)
+				result.Error = event.Message
 			}
 		}
 		if event.Kind == "error" {
@@ -885,6 +1062,25 @@ func readEvents(reader io.Reader, output io.Writer) (tailResult, int, error) {
 		return result, lastSequence, statusError(result.Error)
 	}
 	return result, lastSequence, nil
+}
+
+func validateEventMetadata(event Event) error {
+	if event.BuildID != "" {
+		if err := requestmeta.ValidateBuildID(event.BuildID); err != nil {
+			return err
+		}
+	}
+	if event.JobID != "" {
+		if err := requestmeta.ValidateJobID(event.JobID); err != nil {
+			return err
+		}
+	}
+	if event.RequestID != "" {
+		if err := requestmeta.ValidateRequestID(event.RequestID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func statusError(status string) error {

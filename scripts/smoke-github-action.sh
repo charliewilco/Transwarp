@@ -68,6 +68,11 @@ case "$*" in
 				write_output error "xcodebuild exited 65"
 			elif [ -n "${TRANSWARP_BUILD_ID:-}" ]; then
 				write_output build-id "$TRANSWARP_BUILD_ID"
+				if ! echo "$*" | grep -q -- ' -cancel'; then
+					write_output job-id "xcode-debug"
+					write_output status "passed"
+					write_output exit-code "0"
+				fi
 			elif [ -n "${TRANSWARP_COORDINATOR_URL:-}" ]; then
 				write_output build-id "coordinator-build-from-fake-go"
 				write_output machine-id "${TRANSWARP_MACHINE_ID:-coordinator-machine-from-fake-go}"
@@ -277,6 +282,9 @@ grep -q 'cmd=run github.com/charliewilco/transwarp/cmd/transwarp-dispatch@local 
 grep -q '^TRANSWARP_JOB=$' "$GO_LOG"
 grep -q '^TRANSWARP_BUILD_ID=build-456$' "$GO_LOG"
 expect_output build-id build-456
+expect_output job-id xcode-debug
+expect_output status passed
+expect_output exit-code 0
 if grep -q 'cmd=run github.com/charliewilco/transwarp/cmd/transwarp-diagnose@local' "$GO_LOG"; then
 	echo "tail run should not diagnose before reconnecting" >&2
 	exit 1

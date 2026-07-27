@@ -4339,6 +4339,8 @@ func TestDispatchReconnectsInFlightDuplicateRequestIDAfterRunnerBuildIsAccepted(
 			acceptedOnce.Do(func() {
 				close(buildAccepted)
 			})
+		case "/v1/builds/build-123":
+			response.Write([]byte(`{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","status":"running"}`))
 		case "/v1/builds/build-123/logs":
 			requestMu.Lock()
 			logTails++

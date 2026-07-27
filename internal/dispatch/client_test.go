@@ -438,6 +438,10 @@ func TestRunCoordinatorRetriesRetryablePublicTunnelResponse(t *testing.T) {
 func TestTailReconnectsAfterMissingTerminalStatus(t *testing.T) {
 	tailCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/v1/builds/build-123" {
+			response.Write([]byte(`{"build_id":"build-123","job_id":"xcode","request_id":"run-123","status":"running"}`))
+			return
+		}
 		if request.URL.Path != "/v1/builds/build-123/logs" {
 			t.Fatalf("unexpected path: %s", request.URL.Path)
 		}
@@ -471,6 +475,72 @@ func TestTailReconnectsAfterMissingTerminalStatus(t *testing.T) {
 	}
 	if !strings.Contains(output.String(), "line one") {
 		t.Fatalf("output missing first line: %s", output.String())
+	}
+}
+
+func TestRunWithResultTailingExistingBuildUsesStatusMetadata(t *testing.T) {
+	statusCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/v1/builds/build-123":
+			statusCount++
+			response.Write([]byte(`{"build_id":"build-123","job_id":"xcode-debug","request_id":"original-run","status":"passed","result":{"build_id":"build-123","job_id":"xcode-debug","request_id":"original-run","exit_code":0}}`))
+		case "/v1/builds/build-123/logs":
+			response.Write([]byte(`{"kind":"log","message":"retained line","build_id":"build-123","job_id":"xcode-debug","sequence":1}` + "\n"))
+		default:
+			t.Fatalf("unexpected path: %s", request.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	result, err := RunWithResult(context.Background(), server.Client(), Request{
+		BaseURL:   server.URL,
+		Token:     "token",
+		BuildID:   "build-123",
+		RequestID: "workflow-default-run",
+	}, &bytes.Buffer{})
+
+	if err != nil {
+		t.Fatalf("RunWithResult returned error: %v", err)
+	}
+	if statusCount < 1 {
+		t.Fatal("expected status metadata request")
+	}
+	if result.RequestID != "original-run" {
+		t.Fatalf("unexpected request ID: %s", result.RequestID)
+	}
+	if result.JobID != "xcode-debug" {
+		t.Fatalf("unexpected job ID: %s", result.JobID)
+	}
+	if result.Status != "passed" {
+		t.Fatalf("unexpected status: %s", result.Status)
+	}
+	if result.ExitCode != 0 {
+		t.Fatalf("unexpected exit code: %d", result.ExitCode)
+	}
+}
+
+func TestRunWithResultRejectsUnsafeDirectStreamMetadata(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/v1/builds/build-123":
+			response.Write([]byte(`{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","status":"running"}`))
+		case "/v1/builds/build-123/logs":
+			response.Write([]byte(`{"kind":"build","message":"passed","build_id":"build/123","job_id":"xcode-debug","sequence":1}` + "\n"))
+		default:
+			t.Fatalf("unexpected path: %s", request.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	_, err := RunWithResult(context.Background(), server.Client(), Request{
+		BaseURL: server.URL,
+		Token:   "token",
+		BuildID: "build-123",
+	}, &bytes.Buffer{})
+
+	if err == nil || !strings.Contains(err.Error(), "build_id") {
+		t.Fatalf("expected unsafe build metadata error, got %v", err)
 	}
 }
 
@@ -1198,6 +1268,8 @@ func TestTailCancelsBuildWhenContextEnds(t *testing.T) {
 	cancelled := false
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		switch request.URL.Path {
+		case "/v1/builds/build-123":
+			response.Write([]byte(`{"build_id":"build-123","job_id":"xcode","request_id":"run-123","status":"running"}`))
 		case "/v1/builds/build-123/logs":
 			response.Write([]byte(`{"kind":"log","message":"partial","sequence":1}` + "\n"))
 		case "/v1/builds/build-123/cancel":
@@ -1229,6 +1301,8 @@ func TestRunWithResultAppliesTimeoutWhenTailingExistingBuild(t *testing.T) {
 	cancelled := false
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		switch request.URL.Path {
+		case "/v1/builds/build-123":
+			response.Write([]byte(`{"build_id":"build-123","job_id":"xcode","request_id":"run-123","status":"running"}`))
 		case "/v1/builds/build-123/logs":
 			response.Write([]byte(`{"kind":"log","message":"partial","sequence":1}` + "\n"))
 		case "/v1/builds/build-123/cancel":
