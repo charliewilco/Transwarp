@@ -104,15 +104,25 @@ func main() {
 			fmt.Fprintf(os.Stderr, "failed to write GitHub outputs: %v\n", outputErr)
 		}
 	}
+	if shouldWriteResultSummary(result) {
+		writeResultSummary(os.Stdout, result)
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	writeResultSummary(os.Stdout, result)
 	if resultStatusErr != nil {
 		fmt.Fprintln(os.Stderr, resultStatusErr)
 		os.Exit(1)
 	}
+}
+
+func shouldWriteResultSummary(result dispatch.RunResult) bool {
+	return result.BuildID != "" ||
+		result.MachineID != "" ||
+		result.PublicURL != "" ||
+		result.Status != "" ||
+		result.Error != ""
 }
 
 func writeGitHubOutputs(path string, result dispatch.RunResult) error {

@@ -119,3 +119,32 @@ func TestWriteResultSummaryWritesRecordedResultStatus(t *testing.T) {
 		t.Fatalf("unexpected result summary:\nwant %q\ngot  %q", want, output.String())
 	}
 }
+
+func TestShouldWriteResultSummaryRequiresRunnerMetadata(t *testing.T) {
+	quiet := dispatch.RunResult{
+		RequestID: "run-123",
+		JobID:     "xcode-debug",
+	}
+	if shouldWriteResultSummary(quiet) {
+		t.Fatal("request and job IDs alone should not force a result summary")
+	}
+
+	accepted := dispatch.RunResult{
+		RequestID: "run-123",
+		BuildID:   "build-456",
+		JobID:     "xcode-debug",
+	}
+	if !shouldWriteResultSummary(accepted) {
+		t.Fatal("accepted build metadata should write a result summary")
+	}
+
+	terminal := dispatch.RunResult{
+		RequestID: "run-123",
+		Status:    "failed",
+		ExitCode:  65,
+		Error:     "xcodebuild exited 65",
+	}
+	if !shouldWriteResultSummary(terminal) {
+		t.Fatal("terminal result metadata should write a result summary")
+	}
+}
