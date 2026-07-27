@@ -38,18 +38,19 @@ type Request struct {
 }
 
 type StatusResponse struct {
-	MachineID        string             `json:"machine_id"`
-	MachineName      string             `json:"machine_name"`
-	TunnelMode       string             `json:"tunnel_mode"`
-	Tunnel           TunnelStatus       `json:"tunnel"`
-	Registration     RegistrationStatus `json:"registration"`
-	Capabilities     Capabilities       `json:"capabilities"`
-	PublicURL        string             `json:"public_url"`
-	AcceptingBuilds  *bool              `json:"accepting_builds,omitempty"`
-	ActiveBuilds     int                `json:"active_builds"`
-	QueuedBuilds     int                `json:"queued_builds"`
-	QueuedBuildLimit int                `json:"queued_build_limit"`
-	Jobs             []string           `json:"jobs"`
+	MachineID         string             `json:"machine_id"`
+	MachineName       string             `json:"machine_name"`
+	TunnelMode        string             `json:"tunnel_mode"`
+	Tunnel            TunnelStatus       `json:"tunnel"`
+	Registration      RegistrationStatus `json:"registration"`
+	Capabilities      Capabilities       `json:"capabilities"`
+	PublicURL         string             `json:"public_url"`
+	AcceptingBuilds   *bool              `json:"accepting_builds,omitempty"`
+	CIAcceptingBuilds *bool              `json:"ci_accepting_builds,omitempty"`
+	ActiveBuilds      int                `json:"active_builds"`
+	QueuedBuilds      int                `json:"queued_builds"`
+	QueuedBuildLimit  int                `json:"queued_build_limit"`
+	Jobs              []string           `json:"jobs"`
 }
 
 type RegistrationStatus struct {
@@ -453,6 +454,9 @@ func reportAndValidateRunnerStatus(request Request, baseURL *url.URL, status Sta
 	}
 	if !acceptingBuilds(status.AcceptingBuilds) {
 		return errors.New("runner is unavailable: runner is paused")
+	}
+	if !acceptingBuilds(status.CIAcceptingBuilds) {
+		return errors.New("runner is unavailable: runner is not accepting CI dispatches")
 	}
 	fmt.Fprintf(output, "[ok] tunnel mode=%s state=%s connected=%t ready=%t\n", status.Tunnel.Mode, status.Tunnel.State, status.Tunnel.Connected, status.Tunnel.Ready)
 	if status.Registration.Configured {

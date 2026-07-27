@@ -369,6 +369,59 @@ func TestRunRejectsPausedRunner(t *testing.T) {
 	}
 }
 
+func TestRunRejectsRunnerThatIsNotAcceptingCIDispatches(t *testing.T) {
+	leaseExpiresAt := jsonTime(time.Now().Add(time.Hour))
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/health":
+			_, _ = response.Write([]byte(`{"status":"ok"}`))
+		case "/status":
+			response.Header().Set("Content-Type", "application/json")
+			_, _ = response.Write([]byte(`{
+				"machine_id": "machine-123",
+				"machine_name": "Mac Studio",
+				"tunnel_mode": "named",
+				"tunnel": {
+					"mode": "named",
+					"state": "running",
+					"connected": true,
+					"ready": true,
+					"public_url": "https://transwarp.example.com"
+				},
+				"registration": {
+					"configured": true,
+					"state": "registered",
+					"lease_expires_at": "` + leaseExpiresAt + `"
+				},
+				"public_url": "https://transwarp.example.com",
+				"capabilities": {"os": "macOS", "os_version": "15.6", "architecture": "arm64"},
+				"accepting_builds": true,
+				"ci_accepting_builds": false,
+				"active_builds": 0,
+				"queued_builds": 0,
+				"queued_build_limit": 25,
+				"jobs": ["xcode-debug"]
+			}`))
+		default:
+			http.NotFound(response, request)
+		}
+	}))
+	defer server.Close()
+
+	err := Run(context.Background(), server.Client(), Request{
+		BaseURL:   server.URL,
+		Token:     "runner-token",
+		JobID:     "xcode-debug",
+		AllowHTTP: true,
+		LookupHost: func(context.Context, string) ([]string, error) {
+			return []string{"127.0.0.1"}, nil
+		},
+	}, &bytes.Buffer{})
+	if err == nil || !strings.Contains(err.Error(), "runner is unavailable: runner is not accepting CI dispatches") {
+		t.Fatalf("expected effective CI availability error, got %v", err)
+	}
+}
+
 func TestRunRejectsRegisteredRunnerWithoutLease(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		switch request.URL.Path {
