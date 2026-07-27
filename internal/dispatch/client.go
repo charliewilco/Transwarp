@@ -376,14 +376,18 @@ func tailWithResult(ctx context.Context, client *http.Client, request Request, o
 			return result, err
 		}
 
+		if response.StatusCode < 200 || response.StatusCode >= 300 {
+			response.Body.Close()
+			if terminalRunResult(result) {
+				return result, runResultError(result)
+			}
+			return result, fmt.Errorf("tail failed with %s", response.Status)
+		}
 		eventsResult, lastSequence, err := readEvents(response.Body, output)
 		response.Body.Close()
 		mergeTailResult(&result, eventsResult)
 		if lastSequence > after {
 			after = lastSequence
-		}
-		if response.StatusCode < 200 || response.StatusCode >= 300 {
-			return result, fmt.Errorf("tail failed with %s", response.Status)
 		}
 		if err == nil {
 			return result, nil

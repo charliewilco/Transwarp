@@ -3,6 +3,7 @@ package dispatch
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net"
 	"net/http"
@@ -517,6 +518,88 @@ func TestRunWithResultTailingExistingBuildUsesStatusMetadata(t *testing.T) {
 	}
 	if result.ExitCode != 0 {
 		t.Fatalf("unexpected exit code: %d", result.ExitCode)
+	}
+}
+
+func TestRunWithResultUsesTerminalStatusWhenRetainedLogsAreGone(t *testing.T) {
+	tests := []struct {
+		name      string
+		status    string
+		exitCode  int
+		errorText string
+		wantError string
+	}{
+		{
+			name:     "passed",
+			status:   "passed",
+			exitCode: 0,
+		},
+		{
+			name:      "failed",
+			status:    "failed",
+			exitCode:  65,
+			errorText: "xcodebuild exited with 65",
+			wantError: "xcodebuild exited with 65",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+				switch request.URL.Path {
+				case "/v1/builds/build-123":
+					writeTestJSON(response, BuildStatusResponse{
+						BuildID:   "build-123",
+						JobID:     "xcode-debug",
+						RequestID: "original-run",
+						Status:    test.status,
+						Result: &BuildStatusResult{
+							BuildID:   "build-123",
+							JobID:     "xcode-debug",
+							RequestID: "original-run",
+							ExitCode:  test.exitCode,
+							Error:     test.errorText,
+						},
+					})
+				case "/v1/builds/build-123/logs":
+					http.Error(response, `{"error":"unknown build_id"}`, http.StatusNotFound)
+				default:
+					t.Fatalf("unexpected path: %s", request.URL.Path)
+				}
+			}))
+			defer server.Close()
+
+			var output bytes.Buffer
+			result, err := RunWithResult(context.Background(), server.Client(), Request{
+				BaseURL:   server.URL,
+				Token:     "token",
+				BuildID:   "build-123",
+				RequestID: "workflow-default-run",
+			}, &output)
+
+			if test.wantError == "" {
+				if err != nil {
+					t.Fatalf("RunWithResult returned error: %v", err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), test.wantError) {
+				t.Fatalf("expected %q error, got %v", test.wantError, err)
+			}
+			if result.RequestID != "original-run" {
+				t.Fatalf("unexpected request ID: %s", result.RequestID)
+			}
+			if result.JobID != "xcode-debug" {
+				t.Fatalf("unexpected job ID: %s", result.JobID)
+			}
+			if result.Status != test.status {
+				t.Fatalf("unexpected status: %s", result.Status)
+			}
+			if result.ExitCode != test.exitCode {
+				t.Fatalf("unexpected exit code: %d", result.ExitCode)
+			}
+			if strings.TrimSpace(output.String()) != "" {
+				t.Fatalf("tail error body should not be printed as logs: %q", output.String())
+			}
+		})
 	}
 }
 
@@ -1984,5 +2067,12 @@ func jsonResponse(request *http.Request, statusCode int, body string) *http.Resp
 		Header:     make(http.Header),
 		Body:       io.NopCloser(strings.NewReader(body)),
 		Request:    request,
+	}
+}
+
+func writeTestJSON(response http.ResponseWriter, value any) {
+	response.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(response).Encode(value); err != nil {
+		panic(err)
 	}
 }
