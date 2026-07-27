@@ -31,6 +31,11 @@ func main() {
 		os.Exit(2)
 	}
 	minXcodeVersion := os.Getenv("TRANSWARP_MIN_XCODE_VERSION")
+	requirePublicURL, err := clienv.Bool("TRANSWARP_REQUIRE_PUBLIC_URL", false)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
 	timeout := flag.Duration("timeout", 0, "overall dispatch timeout, for example 30m")
 	resultLookup := flag.Bool("result", false, "fetch a recorded coordinator result for -request-id")
 
@@ -42,6 +47,7 @@ func main() {
 	flag.IntVar(&minCPUCount, "min-cpu-count", minCPUCount, "optional minimum target CPU core count for coordinator dispatch")
 	flag.Uint64Var(&minMemoryBytes, "min-memory-bytes", minMemoryBytes, "optional minimum target memory bytes for coordinator dispatch")
 	flag.StringVar(&minXcodeVersion, "min-xcode-version", minXcodeVersion, "optional minimum target Xcode version for coordinator dispatch")
+	flag.BoolVar(&requirePublicURL, "require-public-url", requirePublicURL, "require coordinator dispatch to select a target with a public runner URL")
 	flag.StringVar(&request.AccessClientID, "access-client-id", os.Getenv("TRANSWARP_ACCESS_CLIENT_ID"), "optional Cloudflare Access service token client ID")
 	flag.StringVar(&request.AccessClientSecret, "access-client-secret", os.Getenv("TRANSWARP_ACCESS_CLIENT_SECRET"), "optional Cloudflare Access service token client secret")
 	flag.StringVar(&request.JobID, "job", os.Getenv("TRANSWARP_JOB"), "configured Transwarp job ID")
@@ -76,6 +82,7 @@ func main() {
 		MinCPUCount:        minCPUCount,
 		MinMemoryBytes:     minMemoryBytes,
 		MinXcodeVersion:    minXcodeVersion,
+		RequirePublicURL:   requirePublicURL,
 		Timeout:            request.Timeout,
 		Cancel:             request.Cancel,
 	}

@@ -1436,6 +1436,94 @@ func TestDispatchTargetsFilterCapabilityConstraints(t *testing.T) {
 	}
 }
 
+func TestDispatchTargetsRequirePublicURLWhenRequested(t *testing.T) {
+	server := newTestServer(t, Options{
+		Token:          "coord-token",
+		TranswarpToken: "runner-token",
+		PublicURL:      "https://coordinator.test",
+	})
+
+	seedTarget(server, Target{
+		MachineID:      "machine-loopback",
+		MachineName:    "Loopback Mac",
+		Listen:         "127.0.0.1:8188",
+		Jobs:           []string{"xcode-debug"},
+		LeaseExpiresAt: time.Now().Add(time.Minute),
+	})
+	seedTarget(server, Target{
+		MachineID:      "machine-public",
+		MachineName:    "Public Mac",
+		Listen:         "127.0.0.1:8288",
+		PublicURL:      "https://public.example.com",
+		Jobs:           []string{"xcode-debug"},
+		LeaseExpiresAt: time.Now().Add(time.Minute),
+	})
+
+	targets, ok := server.dispatchTargets(DispatchRequest{
+		JobID:            "xcode-debug",
+		RequestID:        "run-123",
+		RequirePublicURL: true,
+	}, httptest.NewRecorder())
+	if !ok {
+		t.Fatal("expected public dispatch target")
+	}
+	if len(targets) != 1 || targets[0].MachineID != "machine-public" {
+		t.Fatalf("expected only public target, got %+v", targets)
+	}
+}
+
+func TestPinnedDispatchRejectsLoopbackOnlyTargetWhenPublicURLRequired(t *testing.T) {
+	server := newTestServer(t, Options{
+		Token:          "coord-token",
+		TranswarpToken: "runner-token",
+		PublicURL:      "https://coordinator.test",
+	})
+
+	seedTarget(server, Target{
+		MachineID:      "machine-loopback",
+		MachineName:    "Loopback Mac",
+		Listen:         "127.0.0.1:8188",
+		Jobs:           []string{"xcode-debug"},
+		LeaseExpiresAt: time.Now().Add(time.Minute),
+	})
+
+	response := httptest.NewRecorder()
+	_, ok := server.dispatchTargets(DispatchRequest{
+		MachineID:        "machine-loopback",
+		JobID:            "xcode-debug",
+		RequestID:        "run-123",
+		RequirePublicURL: true,
+	}, response)
+
+	if ok {
+		t.Fatal("expected pinned loopback target to be rejected")
+	}
+	body := response.Body.String()
+	if response.Code != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d body: %s", response.Code, body)
+	}
+	if !strings.Contains(body, "target public_url is required") {
+		t.Fatalf("expected public_url requirement error, got %s", body)
+	}
+}
+
+func TestSameDispatchRequestIncludesPublicURLRequirement(t *testing.T) {
+	request := DispatchRequest{
+		JobID:            "xcode-debug",
+		RequestID:        "run-123",
+		RepoURL:          "https://github.com/example/repo",
+		Ref:              "refs/heads/main",
+		Commit:           "0123456789abcdef0123456789abcdef01234567",
+		RequirePublicURL: true,
+	}
+	mismatch := request
+	mismatch.RequirePublicURL = false
+
+	if sameDispatchRequest(request, mismatch) {
+		t.Fatal("expected require_public_url mismatch to make dispatch requests different")
+	}
+}
+
 func TestPinnedDispatchRejectsTargetThatMissesConstraints(t *testing.T) {
 	server := newTestServer(t, Options{
 		Token:          "coord-token",

@@ -39,7 +39,7 @@ func Check(root string) error {
 	if !ok {
 		return errors.New("action.yml must define inputs")
 	}
-	for _, input := range []string{"job", "mode", "version", "diagnose", "allow-http", "cancel", "result", "tail", "url", "token", "coordinator-url", "coordinator-token", "access-client-id", "access-client-secret", "request-id", "build-id", "repo-url", "ref", "commit", "checkout-metadata", "machine-id", "report-url", "report-token", "min-cpu-count", "min-memory-bytes", "min-xcode-version", "timeout"} {
+	for _, input := range []string{"job", "mode", "version", "diagnose", "allow-http", "cancel", "result", "tail", "url", "token", "coordinator-url", "coordinator-token", "access-client-id", "access-client-secret", "request-id", "build-id", "repo-url", "ref", "commit", "checkout-metadata", "machine-id", "report-url", "report-token", "min-cpu-count", "min-memory-bytes", "min-xcode-version", "require-public-url", "timeout"} {
 		if _, ok := inputs[input]; !ok {
 			return fmt.Errorf("action.yml missing input %s", input)
 		}
@@ -69,7 +69,7 @@ func Check(root string) error {
 	for _, assertion := range []scriptAssertion{
 		{"action.yml must run transwarp-diagnose", []string{"cmd/transwarp-diagnose"}},
 		{"action.yml must run transwarp-dispatch", []string{"cmd/transwarp-dispatch"}},
-		{"action.yml must validate boolean inputs", []string{"normalize_boolean diagnose", "normalize_boolean allow-http", "normalize_boolean cancel", "normalize_boolean result", "normalize_boolean tail", "normalize_boolean checkout-metadata", "must be true, 1, yes, false, 0, or no"}},
+		{"action.yml must validate boolean inputs", []string{"normalize_boolean diagnose", "normalize_boolean allow-http", "normalize_boolean cancel", "normalize_boolean result", "normalize_boolean tail", "normalize_boolean checkout-metadata", "normalize_boolean require-public-url", "must be true, 1, yes, false, 0, or no"}},
 		{"action.yml must support local-only jobs without checkout metadata", []string{"INPUT_CHECKOUT_METADATA", "TRANSWARP_REPO_URL=\"\"", "TRANSWARP_REF=\"\"", "TRANSWARP_COMMIT=\"\""}},
 		{"action.yml must validate numeric constraint inputs", []string{"require_unsigned_integer min-cpu-count", "require_unsigned_integer min-memory-bytes"}},
 		{"action.yml must validate stable identifier inputs", []string{"require_stable_identifier request-id", "require_stable_identifier job", "require_stable_identifier build-id", "require_stable_identifier machine-id"}},

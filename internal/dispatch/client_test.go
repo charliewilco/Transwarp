@@ -1602,6 +1602,7 @@ func TestRunCoordinatorDispatchesAndStreamsOutput(t *testing.T) {
 		MinCPUCount:        12,
 		MinMemoryBytes:     34359738368,
 		MinXcodeVersion:    "16.4",
+		RequirePublicURL:   true,
 	}, &output)
 
 	if err != nil {
@@ -1621,6 +1622,9 @@ func TestRunCoordinatorDispatchesAndStreamsOutput(t *testing.T) {
 	}
 	if !strings.Contains(receivedBody, `"min_xcode_version":"16.4"`) {
 		t.Fatalf("coordinator request body missing min xcode version: %s", receivedBody)
+	}
+	if !strings.Contains(receivedBody, `"require_public_url":true`) {
+		t.Fatalf("coordinator request body missing public URL requirement: %s", receivedBody)
 	}
 	if !strings.Contains(output.String(), "building on registered mac") {
 		t.Fatalf("output missing coordinator stream: %s", output.String())

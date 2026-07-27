@@ -82,6 +82,10 @@ inputs:
   min-xcode-version:
     description: Optional minimum Xcode version for the selected Mac.
     required: false
+  require-public-url:
+    description: Require coordinator dispatch to select a target with a public runner URL.
+    required: false
+    default: "true"
   report-url:
     description: Optional CI result callback URL for direct runner dispatch.
     required: false
@@ -159,6 +163,7 @@ runs:
         INPUT_MIN_CPU_COUNT: "${{ inputs.min-cpu-count }}"
         INPUT_MIN_MEMORY_BYTES: "${{ inputs.min-memory-bytes }}"
         INPUT_MIN_XCODE_VERSION: "${{ inputs.min-xcode-version }}"
+        INPUT_REQUIRE_PUBLIC_URL: "${{ inputs.require-public-url }}"
         INPUT_REPORT_URL: "${{ inputs.report-url }}"
         INPUT_REPORT_TOKEN: "${{ inputs.report-token }}"
         INPUT_TIMEOUT: "${{ inputs.timeout }}"
@@ -232,6 +237,7 @@ runs:
         INPUT_RESULT="$(normalize_boolean result "$INPUT_RESULT")"
         INPUT_TAIL="$(normalize_boolean tail "$INPUT_TAIL")"
         INPUT_CHECKOUT_METADATA="$(normalize_boolean checkout-metadata "$INPUT_CHECKOUT_METADATA")"
+        INPUT_REQUIRE_PUBLIC_URL="$(normalize_boolean require-public-url "$INPUT_REQUIRE_PUBLIC_URL")"
         require_unsigned_integer min-cpu-count "$INPUT_MIN_CPU_COUNT"
         require_unsigned_integer min-memory-bytes "$INPUT_MIN_MEMORY_BYTES"
         EFFECTIVE_REQUEST_ID="${INPUT_REQUEST_ID:-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}-${GITHUB_JOB:-job}}"
@@ -328,6 +334,7 @@ runs:
         export TRANSWARP_MIN_CPU_COUNT="$INPUT_MIN_CPU_COUNT"
         export TRANSWARP_MIN_MEMORY_BYTES="$INPUT_MIN_MEMORY_BYTES"
         export TRANSWARP_MIN_XCODE_VERSION="$INPUT_MIN_XCODE_VERSION"
+        export TRANSWARP_REQUIRE_PUBLIC_URL="$INPUT_REQUIRE_PUBLIC_URL"
         export TRANSWARP_ACCESS_CLIENT_ID="$INPUT_ACCESS_CLIENT_ID"
         export TRANSWARP_ACCESS_CLIENT_SECRET="$INPUT_ACCESS_CLIENT_SECRET"
         if [ "$INPUT_MODE" = "direct" ]; then

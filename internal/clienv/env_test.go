@@ -81,3 +81,51 @@ func TestUint64RejectsInvalidValues(t *testing.T) {
 		})
 	}
 }
+
+func TestBoolParsesEnvironment(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  bool
+	}{
+		{name: "true", value: "true", want: true},
+		{name: "one", value: "1", want: true},
+		{name: "yes", value: "yes", want: true},
+		{name: "false", value: "false", want: false},
+		{name: "zero", value: "0", want: false},
+		{name: "no", value: "no", want: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("TRANSWARP_TEST_BOOL", test.value)
+
+			value, err := Bool("TRANSWARP_TEST_BOOL", !test.want)
+			if err != nil {
+				t.Fatalf("Bool returned error: %v", err)
+			}
+			if value != test.want {
+				t.Fatalf("expected %t, got %t", test.want, value)
+			}
+		})
+	}
+}
+
+func TestBoolUsesFallbackWhenUnset(t *testing.T) {
+	value, err := Bool("TRANSWARP_TEST_BOOL_UNSET", true)
+	if err != nil {
+		t.Fatalf("Bool returned error: %v", err)
+	}
+	if !value {
+		t.Fatal("expected fallback")
+	}
+}
+
+func TestBoolRejectsInvalidValues(t *testing.T) {
+	t.Setenv("TRANSWARP_TEST_BOOL", "maybe")
+
+	_, err := Bool("TRANSWARP_TEST_BOOL", false)
+	if err == nil || !strings.Contains(err.Error(), "must be true") {
+		t.Fatalf("expected boolean error, got %v", err)
+	}
+}

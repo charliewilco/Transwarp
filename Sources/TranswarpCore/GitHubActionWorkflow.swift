@@ -194,6 +194,7 @@ public struct GitHubActionWorkflow: Equatable, Sendable {
 			          # min-cpu-count: 12
 			          # min-memory-bytes: 34359738368
 			          # min-xcode-version: '16.4'
+			          require-public-url: 'true'
 
 			      - name: Summarize selected runner
 			        if: always() && steps.transwarp.outputs['build-id'] != ''

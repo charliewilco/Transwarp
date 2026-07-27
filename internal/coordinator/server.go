@@ -109,15 +109,16 @@ type BuildResult struct {
 }
 
 type DispatchRequest struct {
-	MachineID       string `json:"machine_id"`
-	JobID           string `json:"job_id"`
-	RequestID       string `json:"request_id"`
-	RepoURL         string `json:"repo_url,omitempty"`
-	Ref             string `json:"ref,omitempty"`
-	Commit          string `json:"commit,omitempty"`
-	MinCPUCount     int    `json:"min_cpu_count,omitempty"`
-	MinMemoryBytes  uint64 `json:"min_memory_bytes,omitempty"`
-	MinXcodeVersion string `json:"min_xcode_version,omitempty"`
+	MachineID        string `json:"machine_id"`
+	JobID            string `json:"job_id"`
+	RequestID        string `json:"request_id"`
+	RepoURL          string `json:"repo_url,omitempty"`
+	Ref              string `json:"ref,omitempty"`
+	Commit           string `json:"commit,omitempty"`
+	MinCPUCount      int    `json:"min_cpu_count,omitempty"`
+	MinMemoryBytes   uint64 `json:"min_memory_bytes,omitempty"`
+	MinXcodeVersion  string `json:"min_xcode_version,omitempty"`
+	RequirePublicURL bool   `json:"require_public_url,omitempty"`
 }
 
 type activeDispatch struct {
@@ -600,6 +601,13 @@ func (server *Server) reserveActiveDispatchTarget(requestID string, machineID st
 		server.active[requestID] = active
 		return Target{}, fmt.Errorf("target is unsupported: %w", err)
 	}
+	if err := targetPublicURLError(reservedLoadTarget, active.Request); err != nil {
+		active.TargetMachineID = ""
+		active.RunnerBaseURL = ""
+		active.RunnerBuildID = ""
+		server.active[requestID] = active
+		return Target{}, err
+	}
 	if err := targetLoadError(reservedLoadTarget); err != nil {
 		active.TargetMachineID = ""
 		active.RunnerBaseURL = ""
@@ -1054,6 +1062,10 @@ func (server *Server) dispatchTargets(request DispatchRequest, response http.Res
 			writeJSON(response, http.StatusBadRequest, map[string]string{"error": "target does not satisfy constraints: " + err.Error()})
 			return nil, false
 		}
+		if err := targetPublicURLError(target, request); err != nil {
+			writeJSON(response, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return nil, false
+		}
 		if err := targetLoadError(target); err != nil {
 			writeJSON(response, http.StatusConflict, map[string]string{"error": err.Error()})
 			return nil, false
@@ -1063,7 +1075,7 @@ func (server *Server) dispatchTargets(request DispatchRequest, response http.Res
 
 	targets := []Target{}
 	for _, target := range server.eligibleTargets() {
-		if targetSupportsJob(target, request.JobID) && targetConstraintError(target, request) == nil && targetLoadError(target) == nil {
+		if targetSupportsJob(target, request.JobID) && targetConstraintError(target, request) == nil && targetPublicURLError(target, request) == nil && targetLoadError(target) == nil {
 			targets = append(targets, target)
 		}
 	}
@@ -1110,6 +1122,13 @@ func targetLoadError(target Target) error {
 
 func targetAcceptingBuilds(target Target) bool {
 	return target.AcceptingBuilds == nil || *target.AcceptingBuilds
+}
+
+func targetPublicURLError(target Target, request DispatchRequest) error {
+	if !request.RequirePublicURL || strings.TrimSpace(target.PublicURL) != "" {
+		return nil
+	}
+	return errors.New("target public_url is required for this dispatch")
 }
 
 func targetEligibilityError(target Target) error {
@@ -1291,7 +1310,8 @@ func sameDispatchRequest(left DispatchRequest, right DispatchRequest) bool {
 		left.Commit == right.Commit &&
 		left.MinCPUCount == right.MinCPUCount &&
 		left.MinMemoryBytes == right.MinMemoryBytes &&
-		left.MinXcodeVersion == right.MinXcodeVersion
+		left.MinXcodeVersion == right.MinXcodeVersion &&
+		left.RequirePublicURL == right.RequirePublicURL
 }
 
 func validateDispatchRequest(request DispatchRequest) error {

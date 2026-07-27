@@ -228,6 +228,7 @@ struct GitHubActionWorkflowTests {
 		#expect(yaml.contains("# min-cpu-count: 12"))
 		#expect(yaml.contains("# min-memory-bytes: 34359738368"))
 		#expect(yaml.contains("# min-xcode-version: '16.4'"))
+		#expect(yaml.contains("require-public-url: 'true'"))
 		#expect(!yaml.contains("checkout-metadata:"))
 		#expect(yaml.contains("name: Summarize selected runner"))
 		#expect(yaml.contains("if: always() && steps.transwarp.outputs['build-id'] != ''"))
@@ -253,7 +254,8 @@ struct GitHubActionWorkflowTests {
 			"job:",
 			"# min-cpu-count:",
 			"# min-memory-bytes:",
-			"# min-xcode-version:"
+			"# min-xcode-version:",
+			"require-public-url:"
 		])
 	}
 

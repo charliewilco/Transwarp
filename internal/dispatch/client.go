@@ -54,6 +54,7 @@ type CoordinatorRequest struct {
 	MinCPUCount        int
 	MinMemoryBytes     uint64
 	MinXcodeVersion    string
+	RequirePublicURL   bool
 	Timeout            time.Duration
 	Cancel             bool
 }
@@ -277,25 +278,27 @@ func RunCoordinatorWithResult(ctx context.Context, client *http.Client, request 
 	}
 
 	body, err := json.Marshal(struct {
-		MachineID       string `json:"machine_id,omitempty"`
-		JobID           string `json:"job_id"`
-		RequestID       string `json:"request_id"`
-		RepoURL         string `json:"repo_url,omitempty"`
-		Ref             string `json:"ref,omitempty"`
-		Commit          string `json:"commit,omitempty"`
-		MinCPUCount     int    `json:"min_cpu_count,omitempty"`
-		MinMemoryBytes  uint64 `json:"min_memory_bytes,omitempty"`
-		MinXcodeVersion string `json:"min_xcode_version,omitempty"`
+		MachineID        string `json:"machine_id,omitempty"`
+		JobID            string `json:"job_id"`
+		RequestID        string `json:"request_id"`
+		RepoURL          string `json:"repo_url,omitempty"`
+		Ref              string `json:"ref,omitempty"`
+		Commit           string `json:"commit,omitempty"`
+		MinCPUCount      int    `json:"min_cpu_count,omitempty"`
+		MinMemoryBytes   uint64 `json:"min_memory_bytes,omitempty"`
+		MinXcodeVersion  string `json:"min_xcode_version,omitempty"`
+		RequirePublicURL bool   `json:"require_public_url,omitempty"`
 	}{
-		MachineID:       request.MachineID,
-		JobID:           request.JobID,
-		RequestID:       request.RequestID,
-		RepoURL:         request.RepoURL,
-		Ref:             request.Ref,
-		Commit:          request.Commit,
-		MinCPUCount:     request.MinCPUCount,
-		MinMemoryBytes:  request.MinMemoryBytes,
-		MinXcodeVersion: request.MinXcodeVersion,
+		MachineID:        request.MachineID,
+		JobID:            request.JobID,
+		RequestID:        request.RequestID,
+		RepoURL:          request.RepoURL,
+		Ref:              request.Ref,
+		Commit:           request.Commit,
+		MinCPUCount:      request.MinCPUCount,
+		MinMemoryBytes:   request.MinMemoryBytes,
+		MinXcodeVersion:  request.MinXcodeVersion,
+		RequirePublicURL: request.RequirePublicURL,
 	})
 	if err != nil {
 		return result, err
