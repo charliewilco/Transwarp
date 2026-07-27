@@ -96,6 +96,9 @@ func Check(root string) error {
 	if err := checkReleaseEvidenceExample(root); err != nil {
 		return err
 	}
+	if err := checkNamedTunnelCoordinatorSmoke(root); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -334,6 +337,20 @@ func checkReleaseEvidenceExample(root string) error {
 	}
 	if !strings.Contains(uploadPath, ".build/release-evidence/") {
 		return errors.New("release evidence workflow must upload release evidence directory")
+	}
+	return nil
+}
+
+func checkNamedTunnelCoordinatorSmoke(root string) error {
+	data, err := os.ReadFile(filepath.Join(root, "scripts", "smoke-cloudflare-named-coordinator.sh"))
+	if err != nil {
+		return err
+	}
+	script := string(data)
+	for _, marker := range []string{"$DISPATCH_BIN", "-coordinator-url", "-require-public-url", "-request-id \"$REQUEST_ID\""} {
+		if !strings.Contains(script, marker) {
+			return errors.New("named tunnel coordinator smoke must require public runner URLs during dispatch")
+		}
 	}
 	return nil
 }

@@ -141,11 +141,35 @@ func TestCheckRejectsReleaseEvidenceWorkflowWithoutInputPreflight(t *testing.T) 
 	}
 }
 
+func TestCheckRejectsNamedTunnelCoordinatorSmokeWithoutPublicURLRequirement(t *testing.T) {
+	root := copyGitHubActionFixtures(t)
+	scriptPath := filepath.Join(root, "scripts", "smoke-cloudflare-named-coordinator.sh")
+	data, err := os.ReadFile(scriptPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	modified := strings.Replace(string(data), "\t-require-public-url \\\n", "", 1)
+	if modified == string(data) {
+		t.Fatal("test fixture did not contain require-public-url flag")
+	}
+	if err := os.WriteFile(scriptPath, []byte(modified), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	err = Check(root)
+	if err == nil || !strings.Contains(err.Error(), "named tunnel coordinator smoke must require public runner URLs") {
+		t.Fatalf("expected missing public URL requirement error, got %v", err)
+	}
+}
+
 func copyGitHubActionFixtures(t *testing.T) string {
 	t.Helper()
 	sourceRoot := repositoryRoot(t)
 	destinationRoot := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(destinationRoot, "examples"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(destinationRoot, "scripts"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	paths := []string{"action.yml"}
@@ -156,6 +180,7 @@ func copyGitHubActionFixtures(t *testing.T) string {
 	for _, example := range examples {
 		paths = append(paths, filepath.Join("examples", filepath.Base(example)))
 	}
+	paths = append(paths, filepath.Join("scripts", "smoke-cloudflare-named-coordinator.sh"))
 	for _, path := range paths {
 		source := filepath.Join(sourceRoot, path)
 		destination := filepath.Join(destinationRoot, path)

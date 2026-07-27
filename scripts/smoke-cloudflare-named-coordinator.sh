@@ -253,6 +253,7 @@ cat "$DIAGNOSE_LOG"
 	-coordinator-token "coord-token" \
 	-machine-id "$MACHINE_ID" \
 	-job "$JOB_ID" \
+	-require-public-url \
 	-request-id "$REQUEST_ID" >"$DISPATCH_LOG" 2>&1
 cat "$DISPATCH_LOG"
 grep -q "hello through named coordinator tunnel" "$DISPATCH_LOG"
