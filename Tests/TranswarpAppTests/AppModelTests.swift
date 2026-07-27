@@ -37,6 +37,69 @@ struct AppModelTests {
 	}
 
 	@Test
+	func localTestBuildCanTargetSelectedNonCheckoutJob() {
+		let configuration = AgentConfiguration(
+			listenAddress: "127.0.0.1:8188",
+			machineId: "machine-123",
+			machineName: "Mac",
+			sharedToken: "token",
+			tunnel: TunnelConfiguration(mode: .off),
+			jobs: [
+				BuildJob(
+					id: "local-smoke",
+					label: "Local Smoke",
+					workingDirectory: "/tmp",
+					command: "/usr/bin/xcodebuild",
+					arguments: ["-version"],
+					timeoutSeconds: 300
+				),
+				BuildJob(
+					id: "local-release",
+					label: "Local Release",
+					workingDirectory: "/Users/charlie/App",
+					command: "/usr/bin/xcodebuild",
+					arguments: ["-scheme", "App", "archive"],
+					timeoutSeconds: 3600
+				)
+			]
+		)
+
+		#expect(AppModel.localTestJobID(in: configuration, jobID: "local-release") == "local-release")
+	}
+
+	@Test
+	func localTestBuildRejectsSelectedCheckoutJob() {
+		let configuration = AgentConfiguration(
+			listenAddress: "127.0.0.1:8188",
+			machineId: "machine-123",
+			machineName: "Mac",
+			sharedToken: "token",
+			tunnel: TunnelConfiguration(mode: .off),
+			jobs: [
+				BuildJob(
+					id: "ci-xcode",
+					label: "CI Xcode",
+					workingDirectory: "",
+					checkout: true,
+					allowedRepositories: ["https://github.com/example/app.git"],
+					command: "/usr/bin/xcodebuild",
+					timeoutSeconds: 3600
+				),
+				BuildJob(
+					id: "local-smoke",
+					label: "Local Smoke",
+					workingDirectory: "/tmp",
+					command: "/usr/bin/xcodebuild",
+					arguments: ["-version"],
+					timeoutSeconds: 300
+				)
+			]
+		)
+
+		#expect(AppModel.localTestJobID(in: configuration, jobID: "ci-xcode") == nil)
+	}
+
+	@Test
 	func localTestBuildUnavailableWithoutNonCheckoutJob() {
 		let configuration = AgentConfiguration(
 			listenAddress: "127.0.0.1:8188",

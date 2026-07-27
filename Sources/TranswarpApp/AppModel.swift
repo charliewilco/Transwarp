@@ -95,6 +95,10 @@ final class AppModel {
 		isRunning && !testBuildInFlight && activeBuildCount == 0 && queuedBuildCount == 0 && localTestJobID != nil
 	}
 
+	func canRunTestBuild(_ job: BuildJob) -> Bool {
+		isRunning && !testBuildInFlight && activeBuildCount == 0 && queuedBuildCount == 0 && !job.checkout
+	}
+
 	var canDiagnosePublicEndpoint: Bool {
 		isRunning &&
 			!publicEndpointDiagnosisInFlight &&
@@ -149,6 +153,10 @@ final class AppModel {
 	}
 
 	var testBuildHelp: String {
+		testBuildHelp(for: localTestJob)
+	}
+
+	func testBuildHelp(for job: BuildJob?) -> String {
 		if !isRunning {
 			return "Start the runner before running a test build"
 		}
@@ -164,8 +172,14 @@ final class AppModel {
 		if queuedBuildCount > 0 {
 			return "Wait for queued builds to finish"
 		}
+		if job?.checkout == true {
+			return "Local test builds use jobs with checkout disabled"
+		}
 		if localTestJobID == nil {
 			return "Configure a job with checkout disabled for local test builds"
+		}
+		if let job {
+			return "Run \(job.id) through the local runner API"
 		}
 		return "Run a non-checkout job through the local runner API"
 	}
@@ -299,9 +313,9 @@ final class AppModel {
 		}
 	}
 
-	func runTestBuild() async {
+	func runTestBuild(jobID: String? = nil) async {
 		guard let configuration,
-			  let job = localTestJob,
+			  let job = Self.localTestJob(in: configuration, jobID: jobID),
 			  let baseURL = URL(string: "http://\(configuration.listenAddress)") else {
 			append(.init(kind: .error, message: "Test build failed: runner configuration is unavailable"))
 			return
@@ -649,12 +663,16 @@ final class AppModel {
 		Self.localTestJob(in: configuration)
 	}
 
-	nonisolated static func localTestJobID(in configuration: AgentConfiguration?) -> String? {
-		localTestJob(in: configuration)?.id
+	nonisolated static func localTestJobID(in configuration: AgentConfiguration?, jobID: String? = nil) -> String? {
+		localTestJob(in: configuration, jobID: jobID)?.id
 	}
 
-	nonisolated static func localTestJob(in configuration: AgentConfiguration?) -> BuildJob? {
-		configuration?.jobs.first { !$0.checkout }
+	nonisolated static func localTestJob(in configuration: AgentConfiguration?, jobID: String? = nil) -> BuildJob? {
+		let requestedJobID = jobID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+		guard !requestedJobID.isEmpty else {
+			return configuration?.jobs.first { !$0.checkout }
+		}
+		return configuration?.jobs.first { $0.id == requestedJobID && !$0.checkout }
 	}
 
 	nonisolated static func buildStatus(in status: AgentStatus?, buildID: String) -> BuildStatus? {
