@@ -51,6 +51,12 @@ TOKEN="clean-mac-token-$(date +%s)-$$"
 ARCH="$(uname -m)"
 MACOS_NAME="$(sw_vers -productName)"
 MACOS_VERSION="$(sw_vers -productVersion)"
+CLEAN_MAC_RECEIPT="$CLEAN_MAC_EVIDENCE"
+if [ -z "$CLEAN_MAC_RECEIPT" ]; then
+	CLEAN_MAC_RECEIPT="$TMPDIR/clean-mac-evidence.json"
+else
+	mkdir -p "$(dirname "$CLEAN_MAC_RECEIPT")"
+fi
 
 json_string_field() {
 	path="$1"
@@ -96,14 +102,9 @@ run_config() {
 }
 
 write_clean_mac_evidence() {
-	if [ -z "$CLEAN_MAC_EVIDENCE" ]; then
-		return 0
-	fi
-	EVIDENCE_DIR="$(dirname "$CLEAN_MAC_EVIDENCE")"
-	mkdir -p "$EVIDENCE_DIR"
 	run_audit \
 		-app "$APP_DIR" \
-		-write-clean-mac-evidence "$CLEAN_MAC_EVIDENCE" \
+		-write-clean-mac-evidence "$CLEAN_MAC_RECEIPT" \
 		-clean-mac-architecture "$ARCH" \
 		-clean-mac-os "$MACOS_NAME $MACOS_VERSION" \
 		-clean-mac-machine-id "$MACHINE_ID" \
@@ -118,7 +119,14 @@ write_clean_mac_evidence() {
 		-clean-mac-gatekeeper-log "$GATEKEEPER_LOG" \
 		-clean-mac-app-log "$APP_LOG" \
 		-clean-mac-app-stderr "$APP_ERR"
-	echo "clean-mac evidence: $CLEAN_MAC_EVIDENCE"
+	run_audit \
+		-evidence-only \
+		-app "$APP_DIR" \
+		-clean-mac-evidence "$CLEAN_MAC_RECEIPT" \
+		-summary >/dev/null
+	if [ -n "$CLEAN_MAC_EVIDENCE" ]; then
+		echo "clean-mac evidence: $CLEAN_MAC_EVIDENCE"
+	fi
 }
 
 cleanup() {
