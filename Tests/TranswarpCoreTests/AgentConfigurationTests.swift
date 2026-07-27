@@ -652,6 +652,9 @@ struct AgentConfigurationTests {
 					"build_id": "build-123",
 					"job_id": "xcode-debug",
 					"request_id": "run-123",
+					"repo_url": "https://github.com/example/app.git",
+					"ref": "refs/heads/main",
+					"commit": "abcdef1234567890",
 					"started_at": "2026-07-26T03:26:21Z",
 					"ended_at": "2026-07-26T03:26:22Z",
 					"exit_code": 0
@@ -669,6 +672,9 @@ struct AgentConfigurationTests {
 		#expect(status.recentBuilds[0].status == "passed")
 		#expect(status.recentBuilds[0].reportStatus == "reported")
 		#expect(status.recentBuilds[0].result?.exitCode == 0)
+		#expect(status.recentBuilds[0].result?.repoURL == "https://github.com/example/app.git")
+		#expect(status.recentBuilds[0].result?.ref == "refs/heads/main")
+		#expect(status.recentBuilds[0].result?.commit == "abcdef1234567890")
 		#expect(status.queuedBuilds == 1)
 		#expect(status.tunnel.connected == true)
 		#expect(status.tunnel.readinessError == "waiting for public URL")

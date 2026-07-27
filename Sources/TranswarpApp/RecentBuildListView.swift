@@ -35,6 +35,14 @@ struct RecentBuildListView: View {
 								.truncationMode(.middle)
 								.textSelection(.enabled)
 						}
+						if let sourceSummary = build.result?.sourceSummary {
+							Text(sourceSummary)
+								.font(.caption)
+								.foregroundStyle(.secondary)
+								.lineLimit(1)
+								.truncationMode(.middle)
+								.textSelection(.enabled)
+						}
 						if let resultSummary = build.resultSummary {
 							Text(resultSummary)
 								.font(.caption)

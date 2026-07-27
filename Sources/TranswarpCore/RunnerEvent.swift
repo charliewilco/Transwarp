@@ -299,15 +299,64 @@ public struct BuildResult: Codable, Equatable, Sendable {
 	public var buildId: String
 	public var jobId: String
 	public var requestId: String?
+	public var repoURL: String?
+	public var ref: String?
+	public var commit: String?
 	public var startedAt: String
 	public var endedAt: String
 	public var exitCode: Int
 	public var error: String?
 
-	public init(buildId: String, jobId: String, requestId: String? = nil, startedAt: String, endedAt: String, exitCode: Int, error: String? = nil) {
+	private enum CodingKeys: String, CodingKey {
+		case buildId
+		case jobId
+		case requestId
+		case repoURL = "repoUrl"
+		case ref
+		case commit
+		case startedAt
+		case endedAt
+		case exitCode
+		case error
+	}
+
+	public var sourceSummary: String? {
+		let repo = repoURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+		let ref = ref?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+		let commit = commit?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+		let shortCommit = String(commit.prefix(12))
+
+		if !repo.isEmpty, !ref.isEmpty, !shortCommit.isEmpty {
+			return "\(repo) @ \(ref) (\(shortCommit))"
+		}
+		if !repo.isEmpty, !ref.isEmpty {
+			return "\(repo) @ \(ref)"
+		}
+		if !repo.isEmpty, !shortCommit.isEmpty {
+			return "\(repo) @ \(shortCommit)"
+		}
+		if !repo.isEmpty {
+			return repo
+		}
+		if !ref.isEmpty, !shortCommit.isEmpty {
+			return "\(ref) (\(shortCommit))"
+		}
+		if !ref.isEmpty {
+			return ref
+		}
+		if !shortCommit.isEmpty {
+			return shortCommit
+		}
+		return nil
+	}
+
+	public init(buildId: String, jobId: String, requestId: String? = nil, repoURL: String? = nil, ref: String? = nil, commit: String? = nil, startedAt: String, endedAt: String, exitCode: Int, error: String? = nil) {
 		self.buildId = buildId
 		self.jobId = jobId
 		self.requestId = requestId
+		self.repoURL = repoURL
+		self.ref = ref
+		self.commit = commit
 		self.startedAt = startedAt
 		self.endedAt = endedAt
 		self.exitCode = exitCode

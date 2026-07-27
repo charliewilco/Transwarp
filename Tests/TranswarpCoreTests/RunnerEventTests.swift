@@ -65,6 +65,32 @@ struct RunnerEventTests {
 	}
 
 	@Test
+	func buildResultSourceSummaryUsesCIMetadata() {
+		let result = BuildResult(
+			buildId: "build-123",
+			jobId: "xcode-debug",
+			repoURL: "https://github.com/example/app.git",
+			ref: "refs/heads/main",
+			commit: "abcdef1234567890",
+			startedAt: "start",
+			endedAt: "end",
+			exitCode: 0
+		)
+		let refOnly = BuildResult(
+			buildId: "build-456",
+			jobId: "xcode-debug",
+			ref: "refs/pull/1/merge",
+			commit: "1234567890abcdef",
+			startedAt: "start",
+			endedAt: "end",
+			exitCode: 0
+		)
+
+		#expect(result.sourceSummary == "https://github.com/example/app.git @ refs/heads/main (abcdef123456)")
+		#expect(refOnly.sourceSummary == "refs/pull/1/merge (1234567890ab)")
+	}
+
+	@Test
 	func buildStartPayloadUsesRunnerJSONKeys() throws {
 		let payload = BuildStartPayload(
 			jobId: "xcode-debug",
