@@ -94,8 +94,15 @@ require_ci_dispatch_env() {
 
 require_strict_release_policy_env() {
 	if ! is_true TRANSWARP_COLLECT_ALLOW_INCOMPLETE "$ALLOW_INCOMPLETE"; then
-		is_set "${TRANSWARP_EXPECTED_CLOUDFLARED_VERSION:-}" || fail "TRANSWARP_EXPECTED_CLOUDFLARED_VERSION is required unless TRANSWARP_COLLECT_ALLOW_INCOMPLETE=1"
+		is_set "${TRANSWARP_EXPECTED_CLOUDFLARED_VERSION:-}" || manifest_cloudflared_policy_is_set || fail "TRANSWARP_EXPECTED_CLOUDFLARED_VERSION is required unless TRANSWARP_COLLECT_ALLOW_INCOMPLETE=1"
 	fi
+}
+
+manifest_cloudflared_policy_is_set() {
+	manifest="$APP_DIR/Contents/Resources/TranswarpManifest.json"
+	[ -f "$manifest" ] || return 1
+	value="$(/usr/bin/plutil -extract expected_cloudflared_version raw "$manifest" 2>/dev/null || true)"
+	is_set "$value"
 }
 
 require_strict_distribution_env() {

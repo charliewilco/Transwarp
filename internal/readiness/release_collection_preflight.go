@@ -1,14 +1,17 @@
 package readiness
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/charliewilco/transwarp/internal/endpoint"
 )
 
 type ReleaseCollectionPreflightOptions struct {
+	AppPath                    string
 	AllowIncomplete            string
 	CollectNamedTunnel         string
 	NamedTunnelLaunchMode      string
@@ -31,6 +34,7 @@ func ReleaseCollectionPreflightFromEnv(getenv func(string) string) ReleaseCollec
 		getenv = os.Getenv
 	}
 	return ReleaseCollectionPreflightOptions{
+		AppPath:                    envValue(getenv, "TRANSWARP_APP_PATH", filepath.Join(".build", "Transwarp.app")),
 		AllowIncomplete:            envValue(getenv, "TRANSWARP_COLLECT_ALLOW_INCOMPLETE", "0"),
 		CollectNamedTunnel:         envValue(getenv, "TRANSWARP_COLLECT_NAMED_TUNNEL", "auto"),
 		NamedTunnelLaunchMode:      envValue(getenv, "TRANSWARP_NAMED_TUNNEL_LAUNCH_MODE", "app"),
@@ -96,7 +100,7 @@ func ValidateReleaseCollectionPreflight(options ReleaseCollectionPreflightOption
 	}
 
 	if !allowIncomplete {
-		if strings.TrimSpace(options.ExpectedCloudflaredVersion) == "" {
+		if strings.TrimSpace(options.ExpectedCloudflaredVersion) == "" && strings.TrimSpace(manifestExpectedCloudflaredVersion(options.AppPath)) == "" {
 			return errors.New("TRANSWARP_EXPECTED_CLOUDFLARED_VERSION is required unless TRANSWARP_COLLECT_ALLOW_INCOMPLETE=1")
 		}
 		signIdentity := strings.TrimSpace(options.SignIdentity)
@@ -167,4 +171,22 @@ func releaseCollectsNamedTunnel(options ReleaseCollectionPreflightOptions) (bool
 
 func releaseGeneratesCIDispatchEvidence(options ReleaseCollectionPreflightOptions, collectNamedTunnel bool) bool {
 	return options.GitHub.GitHubActions && collectNamedTunnel
+}
+
+func manifestExpectedCloudflaredVersion(appPath string) string {
+	appPath = strings.TrimSpace(appPath)
+	if appPath == "" {
+		return ""
+	}
+	data, err := os.ReadFile(filepath.Join(appPath, "Contents", "Resources", "TranswarpManifest.json"))
+	if err != nil {
+		return ""
+	}
+	var manifest struct {
+		ExpectedCloudflaredVersion string `json:"expected_cloudflared_version"`
+	}
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return ""
+	}
+	return manifest.ExpectedCloudflaredVersion
 }

@@ -29,6 +29,31 @@ func TestValidateReleaseCollectionPreflightRejectsMissingStrictCloudflaredPolicy
 	}
 }
 
+func TestValidateReleaseCollectionPreflightAcceptsManifestCloudflaredPolicy(t *testing.T) {
+	dir := t.TempDir()
+	app := filepath.Join(dir, "Transwarp.app")
+	manifestDir := filepath.Join(app, "Contents", "Resources")
+	if err := os.MkdirAll(manifestDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(manifestDir, "TranswarpManifest.json"),
+		[]byte(`{"expected_cloudflared_version":"cloudflared version 2026.7.0"}`+"\n"),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	options := strictReleasePreflightOptions(t)
+	options.AppPath = app
+	options.ExpectedCloudflaredVersion = ""
+
+	err := ValidateReleaseCollectionPreflight(options)
+	if err == nil || !strings.Contains(err.Error(), "named-tunnel evidence is required") {
+		t.Fatalf("expected preflight to advance past cloudflared policy, got %v", err)
+	}
+}
+
 func TestValidateReleaseCollectionPreflightRejectsMissingStrictNamedTunnelEvidence(t *testing.T) {
 	err := ValidateReleaseCollectionPreflight(strictReleasePreflightOptions(t))
 	if err == nil || !strings.Contains(err.Error(), "named-tunnel evidence is required") {
