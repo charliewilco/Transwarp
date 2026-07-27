@@ -106,6 +106,48 @@ func TestValidateReleaseCollectionPreflightRejectsMissingStrictCleanMacEvidence(
 	}
 }
 
+func TestValidateReleaseCollectionPreflightRejectsMissingProvidedNamedTunnelEvidence(t *testing.T) {
+	err := ValidateReleaseCollectionPreflight(ReleaseCollectionPreflightOptions{
+		AllowIncomplete:          "1",
+		CollectNamedTunnel:       "0",
+		NotarizeRequested:        "0",
+		NamedTunnelEvidencePath:  filepath.Join(t.TempDir(), "missing-named-tunnel-evidence.json"),
+		CIDispatchEvidencePath:   "",
+		CleanMacEvidencePath:     "",
+		CloudflareTunnelTokenSet: false,
+	})
+	if err == nil || !strings.Contains(err.Error(), "named-tunnel evidence file does not exist") {
+		t.Fatalf("expected named-tunnel evidence path error, got %v", err)
+	}
+}
+
+func TestValidateReleaseCollectionPreflightAllowsNamedTunnelEvidenceOutputPathWhenCollecting(t *testing.T) {
+	err := ValidateReleaseCollectionPreflight(ReleaseCollectionPreflightOptions{
+		AllowIncomplete:          "1",
+		CollectNamedTunnel:       "1",
+		NamedTunnelLaunchMode:    "app",
+		NotarizeRequested:        "0",
+		NamedTunnelEvidencePath:  filepath.Join(t.TempDir(), "new-named-tunnel-evidence.json"),
+		CloudflareTunnelTokenSet: true,
+		PublicURL:                "https://transwarp.example.com",
+	})
+	if err != nil {
+		t.Fatalf("expected named-tunnel output path to pass, got %v", err)
+	}
+}
+
+func TestValidateReleaseCollectionPreflightRejectsMissingProvidedCIDispatchEvidence(t *testing.T) {
+	err := ValidateReleaseCollectionPreflight(ReleaseCollectionPreflightOptions{
+		AllowIncomplete:        "1",
+		CollectNamedTunnel:     "0",
+		NotarizeRequested:      "0",
+		CIDispatchEvidencePath: filepath.Join(t.TempDir(), "missing-ci-dispatch-evidence.json"),
+	})
+	if err == nil || !strings.Contains(err.Error(), "CI dispatch evidence file does not exist") {
+		t.Fatalf("expected CI dispatch evidence path error, got %v", err)
+	}
+}
+
 func TestValidateReleaseCollectionPreflightAcceptsHostedGitHubRunnerForGeneratedCIReceipt(t *testing.T) {
 	dir := t.TempDir()
 	cleanMacEvidence := filepath.Join(dir, "clean-mac-evidence.json")

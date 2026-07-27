@@ -134,6 +134,12 @@ func ValidateReleaseCollectionPreflight(options ReleaseCollectionPreflightOption
 	if strings.TrimSpace(options.CleanMacEvidencePath) != "" && !fileExists(options.CleanMacEvidencePath) {
 		return errors.New("clean-Mac evidence file does not exist: " + strings.TrimSpace(options.CleanMacEvidencePath))
 	}
+	if strings.TrimSpace(options.NamedTunnelEvidencePath) != "" && !collectNamedTunnel && !fileExists(options.NamedTunnelEvidencePath) {
+		return errors.New("named-tunnel evidence file does not exist: " + strings.TrimSpace(options.NamedTunnelEvidencePath))
+	}
+	if strings.TrimSpace(options.CIDispatchEvidencePath) != "" && !releaseGeneratesCIDispatchEvidence(options, collectNamedTunnel) && !fileExists(options.CIDispatchEvidencePath) {
+		return errors.New("CI dispatch evidence file does not exist: " + strings.TrimSpace(options.CIDispatchEvidencePath))
+	}
 	return nil
 }
 
