@@ -132,7 +132,7 @@ func writeCollectorSmokeAppLaunchEvidence(t *testing.T, dir string) {
 {"kind":"log","message":"Xcode 26.6","build_id":"build-123","job_id":"xcode-version"}
 {"kind":"build","message":"passed","build_id":"build-123","job_id":"xcode-version"}
 `,
-		"build-status.json": `{"build_id":"build-123","job_id":"xcode-version","request_id":"request-123","status":"passed"}`,
+		"build-status.json": `{"build_id":"build-123","job_id":"xcode-version","request_id":"request-123","status":"passed","result":{"build_id":"build-123","job_id":"xcode-version","request_id":"request-123","exit_code":0}}`,
 		"status.json":       `{"machine_id":"machine-123","recent_builds":[{"build_id":"build-123","job_id":"xcode-version","request_id":"request-123","status":"passed"}]}`,
 		"app.log":           "app stdout\n",
 		"app.err":           "app stderr\n",

@@ -45,6 +45,9 @@ func TestWriteAppLaunchEvidenceWritesValidatedReceipt(t *testing.T) {
 	if !strings.Contains(string(data), `"kind": "transwarp-app-launch-evidence"`) {
 		t.Fatalf("receipt did not contain app launch kind: %s", data)
 	}
+	if !strings.Contains(string(data), `"exit_code": 0`) {
+		t.Fatalf("receipt did not contain terminal exit code: %s", data)
+	}
 	for field, expected := range hashes {
 		if !strings.Contains(string(data), `"`+field+`": "`+expected+`"`) {
 			t.Fatalf("receipt did not contain %s=%s: %s", field, expected, data)
@@ -158,6 +161,48 @@ func TestWriteAppLaunchEvidenceRequiresQuickTunnelCompanions(t *testing.T) {
 	}
 }
 
+func TestAppLaunchEvidenceRequiresTerminalExitCode(t *testing.T) {
+	dir := t.TempDir()
+	sourceDir := filepath.Join(dir, "source")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	paths := writeAppLaunchSourceFiles(t, sourceDir, false)
+	output := filepath.Join(dir, "evidence", "app-launch.json")
+	if err := WriteAppLaunchEvidence(AppLaunchEvidenceWriteOptions{
+		OutputPath:          output,
+		TunnelMode:          "off",
+		MachineID:           "machine-123",
+		JobID:               "xcode-version",
+		RequestID:           "request-123",
+		BuildID:             "build-123",
+		BuildLogPath:        paths["build"],
+		StatusJSONPath:      paths["status"],
+		BuildStatusJSONPath: paths["build-status"],
+		AppLogPath:          paths["app-log"],
+		AppStderrPath:       paths["app-err"],
+		Now:                 fixedNow,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	modified := strings.Replace(string(data), "\n\t\"exit_code\": 0,", "", 1)
+	if modified == string(data) {
+		t.Fatal("fixture did not contain exit_code")
+	}
+	if err := os.WriteFile(output, []byte(modified), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	check := appLaunchEvidenceCheck(output)
+	if check.Status != StatusMissing || !strings.Contains(check.Detail, "exit_code") {
+		t.Fatalf("expected exit_code missing detail, got %+v", check)
+	}
+}
+
 func writeAppLaunchSourceFiles(t *testing.T, dir string, quick bool) map[string]string {
 	t.Helper()
 	status := `{"machine_id":"machine-123","recent_builds":[{"build_id":"build-123","job_id":"xcode-version","request_id":"request-123","status":"passed"}]}`
@@ -166,7 +211,7 @@ func writeAppLaunchSourceFiles(t *testing.T, dir string, quick bool) map[string]
 	}
 	files := map[string]string{
 		"build":        `{"kind":"log","message":"Xcode 26.6","build_id":"build-123","job_id":"xcode-version"}` + "\n" + `{"kind":"build","message":"passed","build_id":"build-123","job_id":"xcode-version"}` + "\n",
-		"build-status": `{"build_id":"build-123","job_id":"xcode-version","request_id":"request-123","status":"passed"}`,
+		"build-status": `{"build_id":"build-123","job_id":"xcode-version","request_id":"request-123","status":"passed","result":{"build_id":"build-123","job_id":"xcode-version","request_id":"request-123","exit_code":0}}`,
 		"status":       status,
 		"app-log":      "app stdout\n",
 		"app-err":      "app stderr\n",

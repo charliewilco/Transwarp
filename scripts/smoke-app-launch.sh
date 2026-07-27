@@ -245,6 +245,12 @@ if ! grep -q '"status":"passed"' "$BUILD_STATUS_JSON"; then
 	sed -n '1,120p' "$BUILD_STATUS_JSON" >&2 || true
 	fail "build status was not passed"
 fi
+EXIT_CODE="$(json_string_field "$BUILD_STATUS_JSON" result.exit_code)"
+if [ "$EXIT_CODE" != "0" ]; then
+	echo "build status did not include terminal exit_code 0" >&2
+	sed -n '1,120p' "$BUILD_STATUS_JSON" >&2 || true
+	fail "build status did not include exit_code 0"
+fi
 
 curl -fsS -H "Authorization: Bearer $TOKEN" "$RUNNER_URL/status" >"$STATUS_JSON"
 if ! grep -q "\"request_id\":\"$REQUEST_ID\"" "$STATUS_JSON"; then
@@ -267,6 +273,7 @@ go run ./cmd/transwarp-audit \
 	-app-launch-job-id xcode-version \
 	-app-launch-request-id "$REQUEST_ID" \
 	-app-launch-build-id "$BUILD_ID" \
+	-app-launch-exit-code "$EXIT_CODE" \
 	-app-launch-tunnel-ready="$TUNNEL_READY" \
 	-app-launch-public-status-authenticated="$PUBLIC_STATUS_AUTHENTICATED" \
 	-app-launch-build-log "$BUILD_LOG" \

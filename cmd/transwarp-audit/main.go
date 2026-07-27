@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/charliewilco/transwarp/internal/actioncheck"
 	"github.com/charliewilco/transwarp/internal/readiness"
@@ -39,6 +40,7 @@ func main() {
 	appLaunchJobID := ""
 	appLaunchRequestID := ""
 	appLaunchBuildID := ""
+	appLaunchExitCode := envInt("TRANSWARP_APP_LAUNCH_EXIT_CODE", 0)
 	appLaunchTunnelReady := false
 	appLaunchPublicStatusAuthenticated := false
 	appLaunchBuildLog := ""
@@ -133,6 +135,7 @@ func main() {
 	flag.StringVar(&appLaunchJobID, "app-launch-job-id", os.Getenv("TRANSWARP_APP_LAUNCH_JOB_ID"), "job ID used by app-launch smoke")
 	flag.StringVar(&appLaunchRequestID, "app-launch-request-id", os.Getenv("TRANSWARP_APP_LAUNCH_REQUEST_ID"), "request ID used by app-launch smoke")
 	flag.StringVar(&appLaunchBuildID, "app-launch-build-id", os.Getenv("TRANSWARP_APP_LAUNCH_BUILD_ID"), "build ID accepted during app-launch smoke")
+	flag.IntVar(&appLaunchExitCode, "app-launch-exit-code", appLaunchExitCode, "terminal exit code reported by app-launch smoke")
 	flag.BoolVar(&appLaunchTunnelReady, "app-launch-tunnel-ready", envBool("TRANSWARP_APP_LAUNCH_TUNNEL_READY"), "whether app-launch quick tunnel was ready")
 	flag.BoolVar(&appLaunchPublicStatusAuthenticated, "app-launch-public-status-authenticated", envBool("TRANSWARP_APP_LAUNCH_PUBLIC_STATUS_AUTHENTICATED"), "whether app-launch quick tunnel authenticated status")
 	flag.StringVar(&appLaunchBuildLog, "app-launch-build-log", os.Getenv("TRANSWARP_APP_LAUNCH_BUILD_LOG"), "build log from app-launch smoke")
@@ -318,6 +321,7 @@ func main() {
 			JobID:                     appLaunchJobID,
 			RequestID:                 appLaunchRequestID,
 			BuildID:                   appLaunchBuildID,
+			ExitCode:                  appLaunchExitCode,
 			TunnelReady:               appLaunchTunnelReady,
 			PublicStatusAuthenticated: appLaunchPublicStatusAuthenticated,
 			BuildLogPath:              appLaunchBuildLog,
@@ -549,4 +553,16 @@ func envBool(key string) bool {
 	default:
 		return false
 	}
+}
+
+func envInt(key string, fallback int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }

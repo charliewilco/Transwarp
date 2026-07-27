@@ -21,6 +21,7 @@ type AppLaunchEvidenceWriteOptions struct {
 	JobID                     string
 	RequestID                 string
 	BuildID                   string
+	ExitCode                  int
 	TunnelReady               bool
 	PublicStatusAuthenticated bool
 	BuildLogPath              string
@@ -42,6 +43,7 @@ type appLaunchEvidenceReceipt struct {
 	JobID                     string `json:"job_id"`
 	RequestID                 string `json:"request_id"`
 	BuildID                   string `json:"build_id"`
+	ExitCode                  int    `json:"exit_code"`
 	AppExecutableSHA256       string `json:"app_executable_sha256,omitempty"`
 	RunnerSHA256              string `json:"runner_sha256,omitempty"`
 	CloudflaredSHA256         string `json:"cloudflared_sha256,omitempty"`
@@ -147,6 +149,7 @@ func WriteAppLaunchEvidence(options AppLaunchEvidenceWriteOptions) error {
 		JobID:                     options.JobID,
 		RequestID:                 options.RequestID,
 		BuildID:                   options.BuildID,
+		ExitCode:                  options.ExitCode,
 		AppExecutableSHA256:       appExecutableHash,
 		RunnerSHA256:              runnerHash,
 		CloudflaredSHA256:         cloudflaredHash,

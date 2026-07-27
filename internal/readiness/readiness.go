@@ -576,6 +576,7 @@ func appLaunchEvidenceCheck(path string, appPath ...string) Check {
 		missing = append(missing, requireJobID(receipt, "job_id")...)
 		missing = append(missing, requireRequestID(receipt, "request_id")...)
 		missing = append(missing, requireBuildID(receipt, "build_id")...)
+		missing = append(missing, requireNumber(receipt, "exit_code", 0)...)
 		if len(appPath) > 0 && strings.TrimSpace(appPath[0]) != "" {
 			missing = append(missing, requireAppLaunchBundleHashes(receipt, appPath[0])...)
 		}
@@ -589,6 +590,7 @@ func appLaunchEvidenceCheck(path string, appPath ...string) Check {
 		missing = append(missing, requireLogContains(receiptPath, receipt, "build_log", `"message":"Xcode `, `"message":"passed"`)...)
 		missing = append(missing, requireLogContainsReceiptValue(receiptPath, receipt, "build_log", "build_id")...)
 		missing = append(missing, requireLogContains(receiptPath, receipt, "build_status_json", `"status":"passed"`)...)
+		missing = append(missing, requireLogContains(receiptPath, receipt, "build_status_json", `"exit_code":0`)...)
 		missing = append(missing, requireLogContainsReceiptValue(receiptPath, receipt, "build_status_json", "build_id")...)
 		missing = append(missing, requireLogContainsReceiptValue(receiptPath, receipt, "build_status_json", "request_id")...)
 		missing = append(missing, requireLogContains(receiptPath, receipt, "status_json", `"status":"passed"`)...)
@@ -1076,6 +1078,14 @@ func requireGitSHA(receipt map[string]any, field string) []string {
 
 func requireBool(receipt map[string]any, field string, expected bool) []string {
 	value, ok := receipt[field].(bool)
+	if !ok || value != expected {
+		return []string{field}
+	}
+	return nil
+}
+
+func requireNumber(receipt map[string]any, field string, expected float64) []string {
+	value, ok := receipt[field].(float64)
 	if !ok || value != expected {
 		return []string{field}
 	}

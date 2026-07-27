@@ -1418,7 +1418,7 @@ func TestAppLaunchEvidencePassesWithBuildAndStatusProof(t *testing.T) {
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "app-launch-build-status.json"), []byte(`{"build_id":"build-123","job_id":"xcode-version","request_id":"request-123","status":"passed"}`), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "app-launch-build-status.json"), []byte(`{"build_id":"build-123","job_id":"xcode-version","request_id":"request-123","status":"passed","result":{"build_id":"build-123","job_id":"xcode-version","request_id":"request-123","exit_code":0}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "app-launch-status.json"), []byte(`{"machine_id":"machine-123","recent_builds":[{"build_id":"build-123","job_id":"xcode-version","request_id":"request-123","status":"passed"}]}`), 0o600); err != nil {
@@ -1440,6 +1440,7 @@ func TestAppLaunchEvidencePassesWithBuildAndStatusProof(t *testing.T) {
 		"job_id": "xcode-version",
 		"request_id": "request-123",
 		"build_id": "build-123",
+		"exit_code": 0,
 		"keychain_migrated": true,
 		"app_launch_passed": true,
 		"helper_status_authenticated": true,
@@ -1471,7 +1472,7 @@ func TestAppLaunchEvidencePassesWithQuickTunnelProof(t *testing.T) {
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "app-launch-build-status.json"), []byte(`{"build_id":"build-123","job_id":"xcode-version","request_id":"request-123","status":"passed"}`), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "app-launch-build-status.json"), []byte(`{"build_id":"build-123","job_id":"xcode-version","request_id":"request-123","status":"passed","result":{"build_id":"build-123","job_id":"xcode-version","request_id":"request-123","exit_code":0}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	status := `{"machine_id":"machine-123","public_url":"https://quick.trycloudflare.com","tunnel":{"mode":"quick","ready":true},"recent_builds":[{"build_id":"build-123","job_id":"xcode-version","request_id":"request-123","status":"passed"}]}`
@@ -1500,6 +1501,7 @@ func TestAppLaunchEvidencePassesWithQuickTunnelProof(t *testing.T) {
 		"job_id": "xcode-version",
 		"request_id": "request-123",
 		"build_id": "build-123",
+		"exit_code": 0,
 		"tunnel_mode": "quick",
 		"public_url": "https://quick.trycloudflare.com",
 		"tunnel_ready": true,
@@ -1536,7 +1538,7 @@ func TestAppLaunchEvidenceRequiresQuickTunnelPublicDiagnoseProof(t *testing.T) {
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "app-launch-build-status.json"), []byte(`{"build_id":"build-123","request_id":"request-123","status":"passed"}`), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "app-launch-build-status.json"), []byte(`{"build_id":"build-123","request_id":"request-123","status":"passed","result":{"build_id":"build-123","request_id":"request-123","exit_code":0}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "app-launch-status.json"), []byte(`{"machine_id":"machine-123","public_url":"https://quick.trycloudflare.com","tunnel":{"mode":"quick","ready":true},"recent_builds":[{"build_id":"build-123","request_id":"request-123","status":"passed"}]}`), 0o600); err != nil {
@@ -1558,6 +1560,7 @@ func TestAppLaunchEvidenceRequiresQuickTunnelPublicDiagnoseProof(t *testing.T) {
 		"job_id": "xcode-version",
 		"request_id": "request-123",
 		"build_id": "build-123",
+		"exit_code": 0,
 		"tunnel_mode": "quick",
 		"public_url": "https://quick.trycloudflare.com",
 		"tunnel_ready": true,
@@ -1594,7 +1597,7 @@ func TestAppLaunchEvidenceRequiresRecentBuildProof(t *testing.T) {
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "app-launch-build-status.json"), []byte(`{"build_id":"build-123","request_id":"request-123","status":"passed"}`), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "app-launch-build-status.json"), []byte(`{"build_id":"build-123","request_id":"request-123","status":"passed","result":{"build_id":"build-123","request_id":"request-123","exit_code":0}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "app-launch-status.json"), []byte(`{"machine_id":"machine-123","recent_builds":[]}`), 0o600); err != nil {
@@ -1616,6 +1619,7 @@ func TestAppLaunchEvidenceRequiresRecentBuildProof(t *testing.T) {
 		"job_id": "xcode-version",
 		"request_id": "request-123",
 		"build_id": "build-123",
+		"exit_code": 0,
 		"keychain_migrated": true,
 		"app_launch_passed": true,
 		"helper_status_authenticated": true,
