@@ -47,6 +47,32 @@ func TestCheckRejectsMissingActionInput(t *testing.T) {
 	}
 }
 
+func TestCheckRejectsMissingTerminalResultOutput(t *testing.T) {
+	for _, output := range []string{"status", "exit-code", "error"} {
+		t.Run(output, func(t *testing.T) {
+			root := copyGitHubActionFixtures(t)
+			actionPath := filepath.Join(root, "action.yml")
+			data, err := os.ReadFile(actionPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			block := "  " + output + ":\n"
+			modified := strings.Replace(string(data), block, "  "+output+"-missing:\n", 1)
+			if modified == string(data) {
+				t.Fatalf("test fixture did not contain %s output", output)
+			}
+			if err := os.WriteFile(actionPath, []byte(modified), 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			err = Check(root)
+			if err == nil || !strings.Contains(err.Error(), "action.yml missing output "+output) {
+				t.Fatalf("expected missing %s output error, got %v", output, err)
+			}
+		})
+	}
+}
+
 func TestCheckRejectsRequestIDDescriptionWithoutGitHubJobDefault(t *testing.T) {
 	root := copyGitHubActionFixtures(t)
 	actionPath := filepath.Join(root, "action.yml")
