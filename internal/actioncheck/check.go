@@ -52,7 +52,7 @@ func Check(root string) error {
 	if !ok {
 		return errors.New("action.yml must expose dispatch outputs")
 	}
-	for _, output := range []string{"request-id", "build-id", "job-id", "machine-id", "public-url", "status", "exit-code", "error"} {
+	for _, output := range []string{"request-id", "build-id", "job-id", "machine-id", "public-url", "repo-url", "ref", "commit", "status", "exit-code", "error"} {
 		if _, ok := outputs[output]; !ok {
 			return fmt.Errorf("action.yml missing output %s", output)
 		}

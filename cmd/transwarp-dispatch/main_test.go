@@ -18,6 +18,9 @@ func TestWriteGitHubOutputsWritesAvailableDispatchIDs(t *testing.T) {
 		JobID:     "xcode-debug",
 		MachineID: "machine-789",
 		PublicURL: "https://runner.example.com",
+		RepoURL:   "https://github.com/example/app.git",
+		Ref:       "refs/heads/main",
+		Commit:    "0123456789abcdef0123456789abcdef01234567",
 	})
 	if err != nil {
 		t.Fatalf("writeGitHubOutputs returned error: %v", err)
@@ -28,7 +31,7 @@ func TestWriteGitHubOutputsWritesAvailableDispatchIDs(t *testing.T) {
 		t.Fatalf("reading output file: %v", err)
 	}
 	got := string(data)
-	want := "request-id<<TRANSWARP_OUTPUT\nrun-123\nTRANSWARP_OUTPUT\nbuild-id<<TRANSWARP_OUTPUT\nbuild-456\nTRANSWARP_OUTPUT\njob-id<<TRANSWARP_OUTPUT\nxcode-debug\nTRANSWARP_OUTPUT\nmachine-id<<TRANSWARP_OUTPUT\nmachine-789\nTRANSWARP_OUTPUT\npublic-url<<TRANSWARP_OUTPUT\nhttps://runner.example.com\nTRANSWARP_OUTPUT\n"
+	want := "request-id<<TRANSWARP_OUTPUT\nrun-123\nTRANSWARP_OUTPUT\nbuild-id<<TRANSWARP_OUTPUT\nbuild-456\nTRANSWARP_OUTPUT\njob-id<<TRANSWARP_OUTPUT\nxcode-debug\nTRANSWARP_OUTPUT\nmachine-id<<TRANSWARP_OUTPUT\nmachine-789\nTRANSWARP_OUTPUT\npublic-url<<TRANSWARP_OUTPUT\nhttps://runner.example.com\nTRANSWARP_OUTPUT\nrepo-url<<TRANSWARP_OUTPUT\nhttps://github.com/example/app.git\nTRANSWARP_OUTPUT\nref<<TRANSWARP_OUTPUT\nrefs/heads/main\nTRANSWARP_OUTPUT\ncommit<<TRANSWARP_OUTPUT\n0123456789abcdef0123456789abcdef01234567\nTRANSWARP_OUTPUT\n"
 	if got != want {
 		t.Fatalf("unexpected output file:\nwant %q\ngot  %q", want, got)
 	}
@@ -95,9 +98,12 @@ func TestWriteResultSummaryWritesAvailableDispatchIDs(t *testing.T) {
 		JobID:     "xcode-debug",
 		MachineID: "machine-789",
 		PublicURL: "https://runner.example.com",
+		RepoURL:   "https://github.com/example/app.git",
+		Ref:       "refs/heads/main",
+		Commit:    "0123456789abcdef0123456789abcdef01234567",
 	})
 
-	want := "[result] request_id run-123\n[result] build_id build-456\n[result] job_id xcode-debug\n[result] machine_id machine-789\n[result] public_url https://runner.example.com\n"
+	want := "[result] request_id run-123\n[result] build_id build-456\n[result] job_id xcode-debug\n[result] machine_id machine-789\n[result] public_url https://runner.example.com\n[result] repo_url https://github.com/example/app.git\n[result] ref refs/heads/main\n[result] commit 0123456789abcdef0123456789abcdef01234567\n"
 	if output.String() != want {
 		t.Fatalf("unexpected result summary:\nwant %q\ngot  %q", want, output.String())
 	}
@@ -127,6 +133,15 @@ func TestShouldWriteResultSummaryRequiresRunnerMetadata(t *testing.T) {
 	}
 	if shouldWriteResultSummary(quiet) {
 		t.Fatal("request and job IDs alone should not force a result summary")
+	}
+
+	source := dispatch.RunResult{
+		RequestID: "run-123",
+		JobID:     "xcode-debug",
+		RepoURL:   "https://github.com/example/app.git",
+	}
+	if !shouldWriteResultSummary(source) {
+		t.Fatal("source metadata should write a result summary")
 	}
 
 	accepted := dispatch.RunResult{

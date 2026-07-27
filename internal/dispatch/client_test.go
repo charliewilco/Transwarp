@@ -266,7 +266,7 @@ func TestGetCoordinatorResultFetchesRecordedResult(t *testing.T) {
 		if request.Header.Get("CF-Access-Client-Secret") != "access-secret" {
 			t.Fatalf("unexpected access client secret: %s", request.Header.Get("CF-Access-Client-Secret"))
 		}
-		response.Write([]byte(`{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","machine_id":"machine-123","machine":"Mac Studio","status":"passed","exit_code":0,"public_url":"https://runner.example.com"}`))
+		response.Write([]byte(`{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","machine_id":"machine-123","machine":"Mac Studio","repo_url":"https://github.com/example/app.git","ref":"refs/heads/main","commit":"0123456789abcdef0123456789abcdef01234567","status":"passed","exit_code":0,"public_url":"https://runner.example.com"}`))
 	}))
 	defer server.Close()
 
@@ -277,6 +277,9 @@ func TestGetCoordinatorResultFetchesRecordedResult(t *testing.T) {
 		AccessClientSecret: "access-secret",
 		JobID:              "xcode-debug",
 		RequestID:          "run-123",
+		RepoURL:            "https://github.com/example/app.git",
+		Ref:                "refs/heads/main",
+		Commit:             "0123456789abcdef0123456789abcdef01234567",
 	})
 
 	if err != nil {
@@ -285,6 +288,9 @@ func TestGetCoordinatorResultFetchesRecordedResult(t *testing.T) {
 	runResult := result.RunResult()
 	if runResult.BuildID != "build-123" || runResult.JobID != "xcode-debug" || runResult.MachineID != "machine-123" || runResult.Status != "passed" {
 		t.Fatalf("unexpected run result: %+v", runResult)
+	}
+	if runResult.RepoURL != "https://github.com/example/app.git" || runResult.Ref != "refs/heads/main" || runResult.Commit != "0123456789abcdef0123456789abcdef01234567" {
+		t.Fatalf("unexpected source metadata: %+v", runResult)
 	}
 	if err := result.StatusError(); err != nil {
 		t.Fatalf("passed result returned status error: %v", err)
@@ -485,7 +491,7 @@ func TestRunWithResultTailingExistingBuildUsesStatusMetadata(t *testing.T) {
 		switch request.URL.Path {
 		case "/v1/builds/build-123":
 			statusCount++
-			response.Write([]byte(`{"build_id":"build-123","job_id":"xcode-debug","request_id":"original-run","status":"passed","result":{"build_id":"build-123","job_id":"xcode-debug","request_id":"original-run","exit_code":0}}`))
+			response.Write([]byte(`{"build_id":"build-123","job_id":"xcode-debug","request_id":"original-run","status":"passed","result":{"build_id":"build-123","job_id":"xcode-debug","request_id":"original-run","repo_url":"https://github.com/example/app.git","ref":"refs/heads/main","commit":"0123456789abcdef0123456789abcdef01234567","exit_code":0}}`))
 		case "/v1/builds/build-123/logs":
 			response.Write([]byte(`{"kind":"log","message":"retained line","build_id":"build-123","job_id":"xcode-debug","sequence":1}` + "\n"))
 		default:
@@ -518,6 +524,9 @@ func TestRunWithResultTailingExistingBuildUsesStatusMetadata(t *testing.T) {
 	}
 	if result.ExitCode != 0 {
 		t.Fatalf("unexpected exit code: %d", result.ExitCode)
+	}
+	if result.RepoURL != "https://github.com/example/app.git" || result.Ref != "refs/heads/main" || result.Commit != "0123456789abcdef0123456789abcdef01234567" {
+		t.Fatalf("unexpected source metadata: %+v", result)
 	}
 }
 
@@ -712,6 +721,11 @@ func TestGetStatusRejectsInconsistentResultMetadata(t *testing.T) {
 			name:      "running with terminal result",
 			body:      `{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","status":"running","result":{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","exit_code":0}}`,
 			wantError: "must not include",
+		},
+		{
+			name:      "unsafe repo url",
+			body:      `{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","status":"passed","result":{"build_id":"build-123","job_id":"xcode-debug","request_id":"run-123","repo_url":"https://token:secret@github.com/example/app.git","exit_code":0}}`,
+			wantError: "repo_url",
 		},
 	}
 
@@ -1622,6 +1636,9 @@ func TestRunCoordinatorDispatchesAndStreamsOutput(t *testing.T) {
 	}
 	if result.PublicURL != "https://runner.example.com" {
 		t.Fatalf("unexpected public URL: %s", result.PublicURL)
+	}
+	if result.RepoURL != "https://github.com/example/app.git" || result.Ref != "refs/heads/main" || result.Commit != "abc123" {
+		t.Fatalf("unexpected source metadata: %+v", result)
 	}
 }
 

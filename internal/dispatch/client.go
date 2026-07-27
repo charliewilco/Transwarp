@@ -69,6 +69,9 @@ type RunResult struct {
 	JobID     string
 	MachineID string
 	PublicURL string
+	RepoURL   string
+	Ref       string
+	Commit    string
 	Status    string
 	ExitCode  int
 	Error     string
@@ -151,6 +154,9 @@ type BuildStatusResult struct {
 	BuildID   string `json:"build_id"`
 	JobID     string `json:"job_id"`
 	RequestID string `json:"request_id,omitempty"`
+	RepoURL   string `json:"repo_url,omitempty"`
+	Ref       string `json:"ref,omitempty"`
+	Commit    string `json:"commit,omitempty"`
 	ExitCode  int    `json:"exit_code"`
 	Error     string `json:"error,omitempty"`
 }
@@ -180,6 +186,9 @@ func RunWithResult(ctx context.Context, client *http.Client, request Request, ou
 
 	request.BuildID = started.BuildID
 	result.BuildID = started.BuildID
+	result.RepoURL = request.RepoURL
+	result.Ref = request.Ref
+	result.Commit = request.Commit
 	tailResult, err := tailWithResult(ctx, client, request, output, false)
 	if tailResult.Status != "" {
 		result.Status = tailResult.Status
@@ -312,6 +321,9 @@ func RunCoordinatorWithResult(ctx context.Context, client *http.Client, request 
 	streamResult, err := readCoordinatorStream(response.Body, output, request)
 	if streamResult.BuildID != "" {
 		result.BuildID = streamResult.BuildID
+		result.RepoURL = request.RepoURL
+		result.Ref = request.Ref
+		result.Commit = request.Commit
 	}
 	if streamResult.JobID != "" {
 		result.JobID = streamResult.JobID
@@ -501,6 +513,9 @@ func validateBuildStatusResponse(status BuildStatusResponse) error {
 		if status.RequestID != "" && status.Result.RequestID != "" && status.Result.RequestID != status.RequestID {
 			return fmt.Errorf("build status result request_id %q does not match request_id %q", status.Result.RequestID, status.RequestID)
 		}
+		if err := validateCheckoutMetadata(status.Result.RepoURL, status.Result.Ref, status.Result.Commit); err != nil {
+			return err
+		}
 		switch status.Status {
 		case "passed":
 			if status.Result.ExitCode != 0 || strings.TrimSpace(status.Result.Error) != "" {
@@ -544,6 +559,15 @@ func mergeStatusResult(result *RunResult, status BuildStatusResponse) {
 		}
 		if status.Result.RequestID != "" {
 			result.RequestID = status.Result.RequestID
+		}
+		if status.Result.RepoURL != "" {
+			result.RepoURL = status.Result.RepoURL
+		}
+		if status.Result.Ref != "" {
+			result.Ref = status.Result.Ref
+		}
+		if status.Result.Commit != "" {
+			result.Commit = status.Result.Commit
 		}
 		result.ExitCode = status.Result.ExitCode
 		result.Error = status.Result.Error
@@ -869,6 +893,9 @@ func (result CoordinatorBuildResult) RunResult() RunResult {
 		JobID:     result.JobID,
 		MachineID: result.MachineID,
 		PublicURL: result.PublicURL,
+		RepoURL:   result.RepoURL,
+		Ref:       result.Ref,
+		Commit:    result.Commit,
 		Status:    result.Status,
 		ExitCode:  result.ExitCode,
 		Error:     result.Error,
@@ -913,6 +940,18 @@ func (result CoordinatorBuildResult) ValidateForRequest(request CoordinatorReque
 	if strings.TrimSpace(request.MachineID) != "" && result.MachineID != request.MachineID {
 		return fmt.Errorf("coordinator result machine_id %q does not match requested machine_id %q", result.MachineID, request.MachineID)
 	}
+	if err := validateCheckoutMetadata(result.RepoURL, result.Ref, result.Commit); err != nil {
+		return err
+	}
+	if strings.TrimSpace(request.RepoURL) != "" && result.RepoURL != request.RepoURL {
+		return fmt.Errorf("coordinator result repo_url %q does not match requested repo_url %q", result.RepoURL, request.RepoURL)
+	}
+	if strings.TrimSpace(request.Ref) != "" && result.Ref != request.Ref {
+		return fmt.Errorf("coordinator result ref %q does not match requested ref %q", result.Ref, request.Ref)
+	}
+	if strings.TrimSpace(request.Commit) != "" && result.Commit != request.Commit {
+		return fmt.Errorf("coordinator result commit %q does not match requested commit %q", result.Commit, request.Commit)
+	}
 	switch result.Status {
 	case "passed", "failed", "canceled":
 	default:
@@ -921,6 +960,23 @@ func (result CoordinatorBuildResult) ValidateForRequest(request CoordinatorReque
 	if strings.TrimSpace(result.PublicURL) != "" {
 		if err := endpoint.ValidateBaseURL(result.PublicURL, "public_url"); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func validateCheckoutMetadata(repoURL string, ref string, commit string) error {
+	if err := requestmeta.ValidateRepoURL(repoURL); err != nil {
+		return err
+	}
+	if strings.TrimSpace(ref) != "" {
+		if err := requestmeta.ValidateCheckoutTarget(ref); err != nil {
+			return fmt.Errorf("ref %q is not safe: %w", ref, err)
+		}
+	}
+	if strings.TrimSpace(commit) != "" {
+		if err := requestmeta.ValidateCheckoutTarget(commit); err != nil {
+			return fmt.Errorf("commit %q is not safe: %w", commit, err)
 		}
 	}
 	return nil

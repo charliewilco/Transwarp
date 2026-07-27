@@ -59,6 +59,15 @@ case "$*" in
 			if [ -n "${TRANSWARP_JOB:-}" ]; then
 				write_output job-id "$TRANSWARP_JOB"
 			fi
+			if [ -n "${TRANSWARP_REPO_URL:-}" ]; then
+				write_output repo-url "$TRANSWARP_REPO_URL"
+			fi
+			if [ -n "${TRANSWARP_REF:-}" ]; then
+				write_output ref "$TRANSWARP_REF"
+			fi
+			if [ -n "${TRANSWARP_COMMIT:-}" ]; then
+				write_output commit "$TRANSWARP_COMMIT"
+			fi
 			if echo "$*" | grep -q -- ' -result'; then
 				write_output build-id "coordinator-result-build-from-fake-go"
 				write_output machine-id "${TRANSWARP_MACHINE_ID:-coordinator-machine-from-fake-go}"
@@ -188,6 +197,9 @@ grep -q 'TRANSWARP_MIN_MEMORY_BYTES=34359738368' "$GO_LOG"
 expect_output request-id 1234-2-transwarp-build
 expect_output build-id build-from-fake-go
 expect_output job-id xcode-debug
+expect_output repo-url https://github.com/example/app.git
+expect_output ref refs/heads/main
+expect_output commit abc123
 expect_output status passed
 expect_output exit-code 0
 

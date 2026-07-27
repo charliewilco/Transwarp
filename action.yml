@@ -109,6 +109,15 @@ outputs:
   public-url:
     description: Selected runner public URL for coordinator dispatches.
     value: ${{ steps.dispatch.outputs.public-url }}
+  repo-url:
+    description: Repository URL sent to the selected Mac when checkout metadata is enabled.
+    value: ${{ steps.dispatch.outputs.repo-url }}
+  ref:
+    description: Git ref sent to the selected Mac when checkout metadata is enabled.
+    value: ${{ steps.dispatch.outputs.ref }}
+  commit:
+    description: Commit SHA sent to the selected Mac when checkout metadata is enabled.
+    value: ${{ steps.dispatch.outputs.commit }}
   status:
     description: Terminal build status when the selected dispatch mode reports one.
     value: ${{ steps.dispatch.outputs.status }}

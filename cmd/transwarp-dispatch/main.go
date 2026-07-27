@@ -121,6 +121,9 @@ func shouldWriteResultSummary(result dispatch.RunResult) bool {
 	return result.BuildID != "" ||
 		result.MachineID != "" ||
 		result.PublicURL != "" ||
+		result.RepoURL != "" ||
+		result.Ref != "" ||
+		result.Commit != "" ||
 		result.Status != "" ||
 		result.Error != ""
 }
@@ -160,6 +163,21 @@ func writeGitHubOutputs(path string, result dispatch.RunResult) error {
 			return err
 		}
 	}
+	if result.RepoURL != "" {
+		if err := writeGitHubOutputValue(file, "repo-url", result.RepoURL); err != nil {
+			return err
+		}
+	}
+	if result.Ref != "" {
+		if err := writeGitHubOutputValue(file, "ref", result.Ref); err != nil {
+			return err
+		}
+	}
+	if result.Commit != "" {
+		if err := writeGitHubOutputValue(file, "commit", result.Commit); err != nil {
+			return err
+		}
+	}
 	if result.Status != "" {
 		if err := writeGitHubOutputValue(file, "status", result.Status); err != nil {
 			return err
@@ -191,6 +209,15 @@ func writeResultSummary(output io.Writer, result dispatch.RunResult) {
 	}
 	if result.PublicURL != "" {
 		fmt.Fprintf(output, "[result] public_url %s\n", result.PublicURL)
+	}
+	if result.RepoURL != "" {
+		fmt.Fprintf(output, "[result] repo_url %s\n", result.RepoURL)
+	}
+	if result.Ref != "" {
+		fmt.Fprintf(output, "[result] ref %s\n", result.Ref)
+	}
+	if result.Commit != "" {
+		fmt.Fprintf(output, "[result] commit %s\n", result.Commit)
 	}
 	if result.Status != "" {
 		fmt.Fprintf(output, "[result] status %s\n", result.Status)
