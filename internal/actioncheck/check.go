@@ -52,7 +52,7 @@ func Check(root string) error {
 	if !ok {
 		return errors.New("action.yml must expose dispatch outputs")
 	}
-	for _, output := range []string{"request-id", "build-id", "job-id", "machine-id", "public-url", "status", "exit-code"} {
+	for _, output := range []string{"request-id", "build-id", "job-id", "machine-id", "public-url", "status", "exit-code", "error"} {
 		if _, ok := outputs[output]; !ok {
 			return fmt.Errorf("action.yml missing output %s", output)
 		}
@@ -183,7 +183,7 @@ func checkCoordinatorExample(root string) error {
 		return errors.New("coordinator example must expose result lookup")
 	}
 	script := joinedRunScripts(steps)
-	for _, marker := range []string{"### Transwarp dispatch", "$GITHUB_STEP_SUMMARY", "steps.transwarp.outputs[", "job-id", "machine-id", "public-url", "status", "exit-code"} {
+	for _, marker := range []string{"### Transwarp dispatch", "$GITHUB_STEP_SUMMARY", "steps.transwarp.outputs[", "job-id", "machine-id", "public-url", "status", "exit-code", "error"} {
 		if !strings.Contains(script, marker) {
 			return errors.New("coordinator example must summarize selected runner")
 		}

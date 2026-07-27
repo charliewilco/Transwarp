@@ -53,7 +53,7 @@ func TestWriteGitHubOutputsWritesRecordedResultStatus(t *testing.T) {
 		t.Fatalf("reading output file: %v", err)
 	}
 	got := string(data)
-	want := "request-id<<TRANSWARP_OUTPUT\nrun-123\nTRANSWARP_OUTPUT\nbuild-id<<TRANSWARP_OUTPUT\nbuild-456\nTRANSWARP_OUTPUT\nstatus<<TRANSWARP_OUTPUT\nfailed\nTRANSWARP_OUTPUT\nexit-code<<TRANSWARP_OUTPUT\n65\nTRANSWARP_OUTPUT\n"
+	want := "request-id<<TRANSWARP_OUTPUT\nrun-123\nTRANSWARP_OUTPUT\nbuild-id<<TRANSWARP_OUTPUT\nbuild-456\nTRANSWARP_OUTPUT\nstatus<<TRANSWARP_OUTPUT\nfailed\nTRANSWARP_OUTPUT\nexit-code<<TRANSWARP_OUTPUT\n65\nTRANSWARP_OUTPUT\nerror<<TRANSWARP_OUTPUT\nxcodebuild exited 65\nTRANSWARP_OUTPUT\n"
 	if got != want {
 		t.Fatalf("unexpected output file:\nwant %q\ngot  %q", want, got)
 	}

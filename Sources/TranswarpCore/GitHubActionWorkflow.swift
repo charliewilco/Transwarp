@@ -191,6 +191,9 @@ public struct GitHubActionWorkflow: Equatable, Sendable {
 			            if [ -n "${{ steps.transwarp.outputs['status'] }}" ]; then
 			              echo "- Status: ${{ steps.transwarp.outputs['status'] }}"
 			              echo "- Exit Code: ${{ steps.transwarp.outputs['exit-code'] }}"
+			              if [ -n "${{ steps.transwarp.outputs['error'] }}" ]; then
+			                echo "- Error: ${{ steps.transwarp.outputs['error'] }}"
+			              fi
 			            fi
 			          } >> "$GITHUB_STEP_SUMMARY"
 			"""

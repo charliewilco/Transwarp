@@ -229,6 +229,7 @@ struct GitHubActionWorkflowTests {
 		#expect(yaml.contains("steps.transwarp.outputs['public-url']"))
 		#expect(yaml.contains("steps.transwarp.outputs['status']"))
 		#expect(yaml.contains("steps.transwarp.outputs['exit-code']"))
+		#expect(yaml.contains("steps.transwarp.outputs['error']"))
 		#expect(yaml.contains("$GITHUB_STEP_SUMMARY"))
 		assertWorkflowInputIndentation(yaml, keys: [
 			"mode:",

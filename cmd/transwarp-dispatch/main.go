@@ -158,6 +158,11 @@ func writeGitHubOutputs(path string, result dispatch.RunResult) error {
 			return err
 		}
 	}
+	if result.Error != "" {
+		if err := writeGitHubOutputValue(file, "error", result.Error); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

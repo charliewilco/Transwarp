@@ -115,6 +115,9 @@ outputs:
   exit-code:
     description: Recorded coordinator result exit code when result lookup is used.
     value: ${{ steps.dispatch.outputs.exit-code }}
+  error:
+    description: Recorded coordinator result error when result lookup is used and the build failed or was canceled.
+    value: ${{ steps.dispatch.outputs.error }}
 
 runs:
   using: composite

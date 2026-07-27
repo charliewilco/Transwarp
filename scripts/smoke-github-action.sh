@@ -63,8 +63,9 @@ case "$*" in
 				write_output build-id "coordinator-result-build-from-fake-go"
 				write_output machine-id "${TRANSWARP_MACHINE_ID:-coordinator-machine-from-fake-go}"
 				write_output public-url "https://runner.example.com"
-				write_output status "passed"
-				write_output exit-code "0"
+				write_output status "failed"
+				write_output exit-code "65"
+				write_output error "xcodebuild exited 65"
 			elif [ -n "${TRANSWARP_BUILD_ID:-}" ]; then
 				write_output build-id "$TRANSWARP_BUILD_ID"
 			elif [ -n "${TRANSWARP_COORDINATOR_URL:-}" ]; then
@@ -304,8 +305,9 @@ if grep -q 'cmd=run github.com/charliewilco/transwarp/cmd/transwarp-diagnose@loc
 fi
 expect_output request-id run-to-query
 expect_output build-id coordinator-result-build-from-fake-go
-expect_output status passed
-expect_output exit-code 0
+expect_output status failed
+expect_output exit-code 65
+expect_output error "xcodebuild exited 65"
 
 (
 	INPUT_MODE=coordinator
