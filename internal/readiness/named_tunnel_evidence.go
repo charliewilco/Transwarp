@@ -58,6 +58,7 @@ type namedTunnelEvidenceReceipt struct {
 	BuildID                    string `json:"build_id"`
 	JobID                      string `json:"job_id"`
 	RequestID                  string `json:"request_id"`
+	ExitCode                   int    `json:"exit_code"`
 	DispatchLog                string `json:"dispatch_log"`
 	DiagnoseLog                string `json:"diagnose_log"`
 	RunnerLog                  string `json:"runner_log"`
@@ -205,6 +206,7 @@ func WriteNamedTunnelEvidence(options NamedTunnelEvidenceWriteOptions) error {
 		BuildID:                    accepted.BuildID,
 		JobID:                      options.JobID,
 		RequestID:                  options.RequestID,
+		ExitCode:                   0,
 		DispatchLog:                "named-tunnel-dispatch.log",
 		DiagnoseLog:                "named-tunnel-diagnose.log",
 		RunnerLog:                  "named-tunnel-runner.log",
@@ -276,6 +278,7 @@ func validateAcceptedBuildResults(path string, expected acceptedRunnerBuild, lab
 		JobID     string `json:"job_id"`
 		RequestID string `json:"request_id"`
 		Status    string `json:"status"`
+		ExitCode  int    `json:"exit_code"`
 	}
 	if err := json.Unmarshal(data, &results); err != nil {
 		return err
@@ -292,6 +295,9 @@ func validateAcceptedBuildResults(path string, expected acceptedRunnerBuild, lab
 		}
 		if result.Status != "passed" {
 			return errors.New(label + " result did not report passed")
+		}
+		if result.ExitCode != 0 {
+			return errors.New(label + " result did not report exit_code 0")
 		}
 		return nil
 	}

@@ -1836,7 +1836,7 @@ func TestNamedTunnelEvidencePassesWithStructuredReceipt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = os.WriteFile(filepath.Join(dir, "dispatch.log"), []byte("[build] starting Echo Smoke\n{\"kind\":\"coordinator\",\"message\":\"accepted runner build\",\"build_id\":\"build-123\",\"job_id\":\"echo\",\"request_id\":\"request-123\",\"machine_id\":\"machine-123\",\"public_url\":\"https://transwarp.example.com\"}\nhello through named coordinator tunnel\n[result] recorded passed\n[result] request_id request-123\n[result] build_id build-123\n[result] job_id echo\n[result] machine_id machine-123\n[result] public_url https://transwarp.example.com\n"), 0o600)
+	err = os.WriteFile(filepath.Join(dir, "dispatch.log"), []byte("[build] starting Echo Smoke\n{\"kind\":\"coordinator\",\"message\":\"accepted runner build\",\"build_id\":\"build-123\",\"job_id\":\"echo\",\"request_id\":\"request-123\",\"machine_id\":\"machine-123\",\"public_url\":\"https://transwarp.example.com\"}\nhello through named coordinator tunnel\n[result] recorded passed\n[result] request_id request-123\n[result] build_id build-123\n[result] job_id echo\n[result] machine_id machine-123\n[result] public_url https://transwarp.example.com\n[result] exit_code 0\n"), 0o600)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1860,7 +1860,7 @@ func TestNamedTunnelEvidencePassesWithStructuredReceipt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = os.WriteFile(filepath.Join(dir, "results.json"), []byte(`[{"request_id":"request-123","build_id":"build-123","job_id":"echo","status":"passed"}]`), 0o600)
+	err = os.WriteFile(filepath.Join(dir, "results.json"), []byte(`[{"request_id":"request-123","build_id":"build-123","job_id":"echo","status":"passed","exit_code":0}]`), 0o600)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1885,6 +1885,7 @@ func TestNamedTunnelEvidencePassesWithStructuredReceipt(t *testing.T) {
 		"build_id": "build-123",
 		"job_id": "echo",
 		"request_id": "request-123",
+		"exit_code": 0,
 		"machine_id": "machine-123",
 		"diagnose_log": "diagnose.log",
 		"dispatch_log": "dispatch.log",
@@ -2454,7 +2455,7 @@ func TestCIDispatchEvidenceRejectsLocalDispatchLog(t *testing.T) {
 
 func TestCIDispatchEvidencePassesWithHostedGitHubActionsReceipt(t *testing.T) {
 	dir := t.TempDir()
-	err := os.WriteFile(filepath.Join(dir, "named-tunnel-coordinator-smoke.log"), []byte("diagnosis passed\npublic url: https://transwarp.example.com\n{\"kind\":\"coordinator\",\"message\":\"accepted runner build\",\"build_id\":\"build-123\",\"job_id\":\"echo\",\"request_id\":\"request-123\",\"machine_id\":\"machine-123\",\"public_url\":\"https://transwarp.example.com\"}\nhello through named coordinator tunnel\n[build] passed\n[result] recorded passed\n[result] request_id request-123\n[result] build_id build-123\n[result] job_id echo\n[result] machine_id machine-123\n[result] public_url https://transwarp.example.com\n"), 0o600)
+	err := os.WriteFile(filepath.Join(dir, "named-tunnel-coordinator-smoke.log"), []byte("diagnosis passed\npublic url: https://transwarp.example.com\n{\"kind\":\"coordinator\",\"message\":\"accepted runner build\",\"build_id\":\"build-123\",\"job_id\":\"echo\",\"request_id\":\"request-123\",\"machine_id\":\"machine-123\",\"public_url\":\"https://transwarp.example.com\"}\nhello through named coordinator tunnel\n[build] passed\n[result] recorded passed\n[result] request_id request-123\n[result] build_id build-123\n[result] job_id echo\n[result] machine_id machine-123\n[result] public_url https://transwarp.example.com\n[result] exit_code 0\n"), 0o600)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2479,6 +2480,7 @@ func TestCIDispatchEvidencePassesWithHostedGitHubActionsReceipt(t *testing.T) {
 		"build_id": "build-123",
 		"job_id": "echo",
 		"request_id": "request-123",
+		"exit_code": 0,
 		"machine_id": "machine-123",
 		"source_log": "named-tunnel-coordinator-smoke.log"
 	}`), 0o600)
@@ -2494,7 +2496,7 @@ func TestCIDispatchEvidencePassesWithHostedGitHubActionsReceipt(t *testing.T) {
 
 func TestCIDispatchEvidenceRequiresResultIDMarkers(t *testing.T) {
 	dir := t.TempDir()
-	err := os.WriteFile(filepath.Join(dir, "named-tunnel-coordinator-smoke.log"), []byte("diagnosis passed\npublic url: https://transwarp.example.com\n{\"kind\":\"coordinator\",\"message\":\"accepted runner build\",\"build_id\":\"build-123\",\"job_id\":\"echo\",\"request_id\":\"request-123\",\"machine_id\":\"machine-123\",\"public_url\":\"https://transwarp.example.com\"}\nhello through named coordinator tunnel\n[build] passed\n[result] recorded passed\n"), 0o600)
+	err := os.WriteFile(filepath.Join(dir, "named-tunnel-coordinator-smoke.log"), []byte("diagnosis passed\npublic url: https://transwarp.example.com\n{\"kind\":\"coordinator\",\"message\":\"accepted runner build\",\"build_id\":\"build-123\",\"job_id\":\"echo\",\"request_id\":\"request-123\",\"machine_id\":\"machine-123\",\"public_url\":\"https://transwarp.example.com\"}\nhello through named coordinator tunnel\n[build] passed\n[result] recorded passed\n[result] exit_code 0\n"), 0o600)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2519,6 +2521,7 @@ func TestCIDispatchEvidenceRequiresResultIDMarkers(t *testing.T) {
 		"build_id": "build-123",
 		"job_id": "echo",
 		"request_id": "request-123",
+		"exit_code": 0,
 		"machine_id": "machine-123",
 		"source_log": "named-tunnel-coordinator-smoke.log"
 	}`), 0o600)
@@ -3309,6 +3312,7 @@ hello through named coordinator tunnel
 [result] job_id echo
 [result] machine_id machine-123
 [result] public_url https://transwarp.example.com
+[result] exit_code 0
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -3555,7 +3559,7 @@ func writeNamedTunnelEvidenceFixture(t *testing.T, dir string, name string, buil
 	if err := os.WriteFile(filepath.Join(dir, diagnoseLog), []byte("[ok] target public_url="+publicURL+"\n[ok] selected runner health reachable through public_url\n[ok] tunnel mode=named state=running connected=true ready=true\ndiagnosis passed\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, dispatchLog), []byte("[build] starting Echo Smoke\n{\"kind\":\"coordinator\",\"message\":\"accepted runner build\",\"build_id\":\""+buildID+"\",\"job_id\":\""+jobID+"\",\"request_id\":\""+requestID+"\",\"machine_id\":\""+machineID+"\",\"public_url\":\""+publicURL+"\"}\nhello through named coordinator tunnel\n[result] recorded passed\n[result] request_id "+requestID+"\n[result] build_id "+buildID+"\n[result] job_id "+jobID+"\n[result] machine_id "+machineID+"\n[result] public_url "+publicURL+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, dispatchLog), []byte("[build] starting Echo Smoke\n{\"kind\":\"coordinator\",\"message\":\"accepted runner build\",\"build_id\":\""+buildID+"\",\"job_id\":\""+jobID+"\",\"request_id\":\""+requestID+"\",\"machine_id\":\""+machineID+"\",\"public_url\":\""+publicURL+"\"}\nhello through named coordinator tunnel\n[result] recorded passed\n[result] request_id "+requestID+"\n[result] build_id "+buildID+"\n[result] job_id "+jobID+"\n[result] machine_id "+machineID+"\n[result] public_url "+publicURL+"\n[result] exit_code 0\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, runnerLog), []byte("[info] Started transwarp-runner\n[tunnel] INF Registered tunnel connection\n[tunnel] tunnel ready at "+publicURL+"\n"), 0o600); err != nil {
@@ -3575,7 +3579,7 @@ func writeNamedTunnelEvidenceFixture(t *testing.T, dir string, name string, buil
 	if err := os.WriteFile(filepath.Join(dir, targetsAfterDeregister), []byte(`[]`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, resultsJSON), []byte(`[{"request_id":"`+requestID+`","build_id":"`+buildID+`","job_id":"`+jobID+`","status":"passed"}]`), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, resultsJSON), []byte(`[{"request_id":"`+requestID+`","build_id":"`+buildID+`","job_id":"`+jobID+`","status":"passed","exit_code":0}]`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, []byte(`{
@@ -3597,6 +3601,7 @@ func writeNamedTunnelEvidenceFixture(t *testing.T, dir string, name string, buil
 		"build_id": "`+buildID+`",
 		"job_id": "`+jobID+`",
 		"request_id": "`+requestID+`",
+		"exit_code": 0,
 		"machine_id": "`+machineID+`",
 		"diagnose_log": "`+diagnoseLog+`",
 		"dispatch_log": "`+dispatchLog+`",
@@ -3637,13 +3642,13 @@ func writeNamedTunnelSmokeInputs(t *testing.T, dir string, buildID string, jobID
 	}
 	files := map[string]string{
 		inputs.diagnoseLog:            "[ok] target public_url=" + publicURL + "\n[ok] selected runner health reachable through public_url\n[ok] tunnel mode=named state=running connected=true ready=true\ndiagnosis passed\n",
-		inputs.dispatchLog:            "[build] starting Echo Smoke\n{\"kind\":\"coordinator\",\"message\":\"accepted runner build\",\"build_id\":\"" + buildID + "\",\"job_id\":\"" + jobID + "\",\"request_id\":\"" + requestID + "\",\"machine_id\":\"" + machineID + "\",\"public_url\":\"" + publicURL + "\"}\nhello through named coordinator tunnel\n[result] recorded passed\n[result] request_id " + requestID + "\n[result] build_id " + buildID + "\n[result] job_id " + jobID + "\n[result] machine_id " + machineID + "\n[result] public_url " + publicURL + "\n",
+		inputs.dispatchLog:            "[build] starting Echo Smoke\n{\"kind\":\"coordinator\",\"message\":\"accepted runner build\",\"build_id\":\"" + buildID + "\",\"job_id\":\"" + jobID + "\",\"request_id\":\"" + requestID + "\",\"machine_id\":\"" + machineID + "\",\"public_url\":\"" + publicURL + "\"}\nhello through named coordinator tunnel\n[result] recorded passed\n[result] request_id " + requestID + "\n[result] build_id " + buildID + "\n[result] job_id " + jobID + "\n[result] machine_id " + machineID + "\n[result] public_url " + publicURL + "\n[result] exit_code 0\n",
 		inputs.runnerLog:              "[info] Started transwarp-runner\n[tunnel] INF Registered tunnel connection\n[tunnel] tunnel ready at " + publicURL + "\n",
 		inputs.appLog:                 "[info] Started transwarp-runner\n[tunnel] INF Registered tunnel connection\n[tunnel] tunnel ready at " + publicURL + "\n",
 		inputs.appStderr:              "",
 		inputs.targetsRegistered:      `[{"machine_id":"` + machineID + `","public_url":"` + publicURL + `","accepting_builds":true,"jobs":["` + jobID + `"]}]`,
 		inputs.targetsAfterDeregister: `[]`,
-		inputs.results:                `[{"request_id":"` + requestID + `","build_id":"` + buildID + `","job_id":"` + jobID + `","status":"passed"}]`,
+		inputs.results:                `[{"request_id":"` + requestID + `","build_id":"` + buildID + `","job_id":"` + jobID + `","status":"passed","exit_code":0}]`,
 	}
 	for path, content := range files {
 		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
@@ -3672,7 +3677,7 @@ func writeCIDispatchEvidenceFixture(t *testing.T, dir string, name string, build
 	t.Helper()
 	sourceLog := name + "-source.log"
 	path := filepath.Join(dir, name+"-ci-dispatch.json")
-	if err := os.WriteFile(filepath.Join(dir, sourceLog), []byte("diagnosis passed\npublic url: "+publicURL+"\n{\"kind\":\"coordinator\",\"message\":\"accepted runner build\",\"build_id\":\""+buildID+"\",\"job_id\":\""+jobID+"\",\"request_id\":\""+requestID+"\",\"machine_id\":\""+machineID+"\",\"public_url\":\""+publicURL+"\"}\nhello through named coordinator tunnel\n[build] passed\n[result] recorded passed\n[result] request_id "+requestID+"\n[result] build_id "+buildID+"\n[result] job_id "+jobID+"\n[result] machine_id "+machineID+"\n[result] public_url "+publicURL+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, sourceLog), []byte("diagnosis passed\npublic url: "+publicURL+"\n{\"kind\":\"coordinator\",\"message\":\"accepted runner build\",\"build_id\":\""+buildID+"\",\"job_id\":\""+jobID+"\",\"request_id\":\""+requestID+"\",\"machine_id\":\""+machineID+"\",\"public_url\":\""+publicURL+"\"}\nhello through named coordinator tunnel\n[build] passed\n[result] recorded passed\n[result] request_id "+requestID+"\n[result] build_id "+buildID+"\n[result] job_id "+jobID+"\n[result] machine_id "+machineID+"\n[result] public_url "+publicURL+"\n[result] exit_code 0\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, []byte(`{
@@ -3694,6 +3699,7 @@ func writeCIDispatchEvidenceFixture(t *testing.T, dir string, name string, build
 		"build_id": "`+buildID+`",
 		"job_id": "`+jobID+`",
 		"request_id": "`+requestID+`",
+		"exit_code": 0,
 		"machine_id": "`+machineID+`",
 		"source_log": "`+sourceLog+`"
 	}`), 0o600); err != nil {

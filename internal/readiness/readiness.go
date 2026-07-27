@@ -626,6 +626,7 @@ func namedTunnelEvidenceCheck(path string, appPath ...string) Check {
 		missing = append(missing, requireBuildID(receipt, "build_id")...)
 		missing = append(missing, requireJobID(receipt, "job_id")...)
 		missing = append(missing, requireRequestID(receipt, "request_id")...)
+		missing = append(missing, requireNumber(receipt, "exit_code", 0)...)
 		missing = append(missing, requireMachineID(receipt, "machine_id")...)
 		missing = append(missing, requireLogContains(receiptPath, receipt, "diagnose_log", "diagnosis passed", "selected runner health reachable through public_url", "tunnel mode=named", "state=running", "connected=true", "ready=true")...)
 		missing = append(missing, requireLogContainsReceiptValue(receiptPath, receipt, "diagnose_log", "public_url")...)
@@ -633,7 +634,7 @@ func namedTunnelEvidenceCheck(path string, appPath ...string) Check {
 		missing = append(missing, requireEvidenceSiblingFile(receiptPath, receipt, "app_log")...)
 		missing = append(missing, requireEvidenceSiblingFile(receiptPath, receipt, "app_stderr")...)
 		missing = append(missing, requireLogContains(receiptPath, receipt, "dispatch_log", "hello through named coordinator tunnel", "[result] recorded passed")...)
-		missing = append(missing, requireResultMarkers(receiptPath, receipt, "dispatch_log", "build_id", "job_id", "request_id", "machine_id", "public_url")...)
+		missing = append(missing, requireResultMarkers(receiptPath, receipt, "dispatch_log", "build_id", "job_id", "request_id", "machine_id", "public_url", "exit_code")...)
 		missing = append(missing, requireAcceptedBuildMetadata(receiptPath, receipt, "dispatch_log")...)
 		missing = append(missing, requireNamedTunnelResults(receiptPath, receipt)...)
 		missing = append(missing, requireNamedTunnelTargetEvidence(receiptPath, receipt)...)
@@ -662,10 +663,11 @@ func ciDispatchEvidenceCheck(path string) Check {
 		missing = append(missing, requireBuildID(receipt, "build_id")...)
 		missing = append(missing, requireJobID(receipt, "job_id")...)
 		missing = append(missing, requireRequestID(receipt, "request_id")...)
+		missing = append(missing, requireNumber(receipt, "exit_code", 0)...)
 		missing = append(missing, requireMachineID(receipt, "machine_id")...)
 		missing = append(missing, requireNonEmptyString(receipt, "source_log")...)
 		missing = append(missing, requireLogContains(receiptPath, receipt, "source_log", "diagnosis passed", "hello through named coordinator tunnel", "[result] recorded passed")...)
-		missing = append(missing, requireResultMarkers(receiptPath, receipt, "source_log", "build_id", "job_id", "request_id", "machine_id", "public_url")...)
+		missing = append(missing, requireResultMarkers(receiptPath, receipt, "source_log", "build_id", "job_id", "request_id", "machine_id", "public_url", "exit_code")...)
 		missing = append(missing, requireAcceptedBuildMetadata(receiptPath, receipt, "source_log")...)
 		return missing
 	})
@@ -1138,13 +1140,31 @@ func requireLogContainsReceiptValue(receiptPath string, receipt map[string]any, 
 func requireResultMarkers(receiptPath string, receipt map[string]any, logField string, valueFields ...string) []string {
 	markers := make([]string, 0, len(valueFields))
 	for _, valueField := range valueFields {
-		value, ok := receipt[valueField].(string)
-		if !ok || strings.TrimSpace(value) == "" {
+		value, ok := resultMarkerValue(receipt, valueField)
+		if !ok {
 			return []string{valueField}
 		}
 		markers = append(markers, "[result] "+valueField+" "+value)
 	}
 	return requireLogContains(receiptPath, receipt, logField, markers...)
+}
+
+func resultMarkerValue(receipt map[string]any, field string) (string, bool) {
+	switch value := receipt[field].(type) {
+	case string:
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return "", false
+		}
+		return value, true
+	case float64:
+		if value != float64(int64(value)) {
+			return "", false
+		}
+		return fmt.Sprintf("%d", int64(value)), true
+	default:
+		return "", false
+	}
 }
 
 func requireNamedTunnelRunnerLog(receiptPath string, receipt map[string]any) []string {

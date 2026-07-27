@@ -55,6 +55,7 @@ type ciDispatchReceipt struct {
 	BuildID        string `json:"build_id"`
 	JobID          string `json:"job_id"`
 	RequestID      string `json:"request_id"`
+	ExitCode       int    `json:"exit_code"`
 	MachineID      string `json:"machine_id"`
 	SourceLog      string `json:"source_log"`
 }
@@ -130,6 +131,7 @@ func WriteCIDispatchEvidence(options CIDispatchEvidenceWriteOptions) error {
 		BuildID:        namedReceipt.BuildID,
 		JobID:          namedReceipt.JobID,
 		RequestID:      namedReceipt.RequestID,
+		ExitCode:       namedReceipt.ExitCode,
 		MachineID:      namedReceipt.MachineID,
 		SourceLog:      options.SourceLogName,
 	}
@@ -150,6 +152,7 @@ type namedTunnelReceipt struct {
 	BuildID       string `json:"build_id"`
 	JobID         string `json:"job_id"`
 	RequestID     string `json:"request_id"`
+	ExitCode      int    `json:"exit_code"`
 	MachineID     string `json:"machine_id"`
 }
 
@@ -179,6 +182,9 @@ func readNamedTunnelReceipt(path string) (namedTunnelReceipt, error) {
 	}
 	if err := requestmeta.ValidateRequestID(receipt.RequestID); err != nil {
 		return namedTunnelReceipt{}, fmt.Errorf("named tunnel evidence request_id is invalid: %w", err)
+	}
+	if receipt.ExitCode != 0 {
+		return namedTunnelReceipt{}, errors.New("named tunnel evidence exit_code must be 0")
 	}
 	if err := requestmeta.ValidateMachineID(receipt.MachineID); err != nil {
 		return namedTunnelReceipt{}, fmt.Errorf("named tunnel evidence machine_id is invalid: %w", err)

@@ -63,6 +63,7 @@ func TestWriteQuickTunnelCoordinatorEvidenceValidatesAcceptedBuildAndResults(t *
 	}
 	if err := os.WriteFile(dispatchLog, []byte(`{"kind":"coordinator","message":"accepted runner build","build_id":"build-123","job_id":"echo","request_id":"request-123","machine_id":"machine-123","public_url":"https://example.trycloudflare.com"}
 [result] recorded passed
+[result] exit_code 0
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +73,7 @@ func TestWriteQuickTunnelCoordinatorEvidenceValidatesAcceptedBuildAndResults(t *
 	if err := os.WriteFile(targetsAfter, []byte(`[]`), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(results, []byte(`[{"build_id":"build-123","job_id":"echo","request_id":"request-123","status":"passed"}]`), 0o600); err != nil {
+	if err := os.WriteFile(results, []byte(`[{"build_id":"build-123","job_id":"echo","request_id":"request-123","status":"passed","exit_code":0}]`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -129,7 +130,7 @@ func TestWriteQuickTunnelCoordinatorEvidenceRejectsMismatchedResults(t *testing.
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(results, []byte(`[{"build_id":"other-build","job_id":"echo","request_id":"request-123","status":"passed"}]`), 0o600); err != nil {
+	if err := os.WriteFile(results, []byte(`[{"build_id":"other-build","job_id":"echo","request_id":"request-123","status":"passed","exit_code":0}]`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

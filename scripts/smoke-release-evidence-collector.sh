@@ -113,6 +113,7 @@ hello through named coordinator tunnel
 [result] job_id echo
 [result] machine_id machine-123
 [result] public_url https://transwarp.example.com
+[result] exit_code 0
 LOG
 	cat > "$dir/$runner_log" <<'LOG'
 [info] Started transwarp-runner
@@ -134,7 +135,7 @@ JSON
 []
 JSON
 	cat > "$dir/$results_json" <<'JSON'
-[{"request_id":"request-123","build_id":"build-123","job_id":"echo","status":"passed"}]
+[{"request_id":"request-123","build_id":"build-123","job_id":"echo","status":"passed","exit_code":0}]
 JSON
 	./scripts/package-app.sh "$app_path" >/dev/null
 	go run ./cmd/transwarp-audit \
@@ -172,6 +173,7 @@ hello through named coordinator tunnel
 [result] job_id echo
 [result] machine_id machine-123
 [result] public_url https://transwarp.example.com
+[result] exit_code 0
 LOG
 	cat > "$path" <<JSON
 {
@@ -193,6 +195,7 @@ LOG
 	"build_id": "build-123",
 	"job_id": "echo",
 	"request_id": "request-123",
+	"exit_code": 0,
 	"machine_id": "machine-123",
 	"source_log": "$source_log"
 }
@@ -515,6 +518,7 @@ hello through named coordinator tunnel
 [result] job_id echo
 [result] machine_id machine-123
 [result] public_url https://transwarp.example.com
+[result] exit_code 0
 LOG
 cat > "$evidence_dir/runner.log" <<'LOG'
 [info] Started transwarp-runner
@@ -534,7 +538,7 @@ cat > "$evidence_dir/targets-after-deregister.json" <<'JSON'
 []
 JSON
 cat > "$evidence_dir/results.json" <<'JSON'
-[{"request_id":"request-123","build_id":"build-123","job_id":"echo","status":"passed"}]
+[{"request_id":"request-123","build_id":"build-123","job_id":"echo","status":"passed","exit_code":0}]
 JSON
 go run ./cmd/transwarp-audit \
 	-app "$TRANSWARP_NAMED_TUNNEL_APP_PATH" \
