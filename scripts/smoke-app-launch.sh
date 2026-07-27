@@ -23,6 +23,7 @@ TOKEN="launch-smoke-token-$(date +%s)-$$"
 PORT="${TRANSWARP_SMOKE_PORT:-18190}"
 REQUEST_ID="app-launch-smoke-run"
 APP_LAUNCH_EVIDENCE="${TRANSWARP_APP_LAUNCH_EVIDENCE:-}"
+APP_LAUNCH_RECEIPT="${APP_LAUNCH_EVIDENCE:-$TMPDIR/app-launch-evidence.json}"
 APP_LAUNCH_TUNNEL_MODE="${TRANSWARP_APP_LAUNCH_TUNNEL_MODE:-off}"
 APP_LAUNCH_PUBLIC_ATTEMPTS="${TRANSWARP_APP_LAUNCH_PUBLIC_ATTEMPTS:-180}"
 PLUTIL="${PLUTIL:-/usr/bin/plutil}"
@@ -257,25 +258,31 @@ if ! grep -q '"status":"passed"' "$STATUS_JSON"; then
 	fail "runner status did not include passed recent build"
 fi
 
+go run ./cmd/transwarp-audit \
+	-app "$APP_DIR" \
+	-write-app-launch-evidence "$APP_LAUNCH_RECEIPT" \
+	-app-launch-tunnel-mode "$APP_LAUNCH_TUNNEL_MODE" \
+	-app-launch-public-url "$PUBLIC_URL" \
+	-app-launch-machine-id "$MACHINE_ID" \
+	-app-launch-job-id xcode-version \
+	-app-launch-request-id "$REQUEST_ID" \
+	-app-launch-build-id "$BUILD_ID" \
+	-app-launch-tunnel-ready="$TUNNEL_READY" \
+	-app-launch-public-status-authenticated="$PUBLIC_STATUS_AUTHENTICATED" \
+	-app-launch-build-log "$BUILD_LOG" \
+	-app-launch-status-json "$STATUS_JSON" \
+	-app-launch-build-status-json "$BUILD_STATUS_JSON" \
+	-app-launch-public-diagnose-log "$PUBLIC_DIAGNOSE_LOG" \
+	-app-launch-public-dispatch-log "$PUBLIC_DISPATCH_LOG" \
+	-app-launch-app-log "$APP_LOG" \
+	-app-launch-app-stderr "$APP_ERR"
+go run ./cmd/transwarp-audit \
+	-evidence-only \
+	-app "$APP_DIR" \
+	-app-launch-evidence "$APP_LAUNCH_RECEIPT" \
+	-summary >/dev/null
 if [ -n "$APP_LAUNCH_EVIDENCE" ]; then
-	go run ./cmd/transwarp-audit \
-		-app "$APP_DIR" \
-		-write-app-launch-evidence "$APP_LAUNCH_EVIDENCE" \
-		-app-launch-tunnel-mode "$APP_LAUNCH_TUNNEL_MODE" \
-		-app-launch-public-url "$PUBLIC_URL" \
-		-app-launch-machine-id "$MACHINE_ID" \
-		-app-launch-job-id xcode-version \
-		-app-launch-request-id "$REQUEST_ID" \
-		-app-launch-build-id "$BUILD_ID" \
-		-app-launch-tunnel-ready="$TUNNEL_READY" \
-		-app-launch-public-status-authenticated="$PUBLIC_STATUS_AUTHENTICATED" \
-		-app-launch-build-log "$BUILD_LOG" \
-		-app-launch-status-json "$STATUS_JSON" \
-		-app-launch-build-status-json "$BUILD_STATUS_JSON" \
-		-app-launch-public-diagnose-log "$PUBLIC_DIAGNOSE_LOG" \
-		-app-launch-public-dispatch-log "$PUBLIC_DISPATCH_LOG" \
-		-app-launch-app-log "$APP_LOG" \
-		-app-launch-app-stderr "$APP_ERR"
+	printf "app launch evidence: %s\n" "$APP_LAUNCH_EVIDENCE"
 fi
 
 printf "app launch smoke passed: %s\n" "$CONFIG"
