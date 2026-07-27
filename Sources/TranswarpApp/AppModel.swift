@@ -110,21 +110,22 @@ final class AppModel {
 		agentStatus?.isAcceptingBuilds ?? true
 	}
 
-	func githubActionWorkflow(mode: GitHubActionWorkflow.Mode) -> String? {
+	func githubActionWorkflow(mode: GitHubActionWorkflow.Mode, jobID: String? = nil) -> String? {
 		if mode == .releaseEvidence {
 			return GitHubActionWorkflow(mode: .releaseEvidence, jobID: "").yaml
 		}
 		guard let configuration else {
 			return nil
 		}
-		return GitHubActionWorkflow.make(for: configuration, mode: mode)?.yaml
+		return GitHubActionWorkflow.make(for: configuration, mode: mode, jobID: jobID)?.yaml
 	}
 
-	func ciWorkflowReadiness(mode: GitHubActionWorkflow.Mode) -> CIWorkflowReadiness {
+	func ciWorkflowReadiness(mode: GitHubActionWorkflow.Mode, jobID: String? = nil) -> CIWorkflowReadiness {
 		CIWorkflowReadiness(
 			mode: mode,
 			configuration: configuration,
-			configurationIssues: configurationIssues
+			configurationIssues: configurationIssues,
+			jobID: jobID
 		)
 	}
 
@@ -455,19 +456,25 @@ final class AppModel {
 		NSWorkspace.shared.open(configurationPath)
 	}
 
-	func copyGitHubActionWorkflow(mode: GitHubActionWorkflow.Mode) {
-		guard let workflow = githubActionWorkflow(mode: mode) else {
-			append(.init(kind: .error, message: "GitHub Action workflow unavailable: no jobs are configured"))
+	func copyGitHubActionWorkflow(mode: GitHubActionWorkflow.Mode, jobID: String? = nil) {
+		guard let workflow = githubActionWorkflow(mode: mode, jobID: jobID) else {
+			let selectedJobID = jobID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+			let reason = selectedJobID.isEmpty ? "no jobs are configured" : "selected job \(selectedJobID) is not configured"
+			append(.init(kind: .error, message: "GitHub Action workflow unavailable: \(reason)"))
 			return
 		}
 
 		NSPasteboard.general.clearContents()
 		NSPasteboard.general.setString(workflow, forType: .string)
-		append(.init(kind: .info, message: "Copied \(mode.rawValue) GitHub Action workflow"))
+		if let jobID, !jobID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, mode != .releaseEvidence {
+			append(.init(kind: .info, message: "Copied \(mode.rawValue) GitHub Action workflow for \(jobID)"))
+		} else {
+			append(.init(kind: .info, message: "Copied \(mode.rawValue) GitHub Action workflow"))
+		}
 	}
 
-	func copyGitHubActionSecretChecklist(mode: GitHubActionWorkflow.Mode) {
-		let checklist = ciWorkflowReadiness(mode: mode).secretChecklistText
+	func copyGitHubActionSecretChecklist(mode: GitHubActionWorkflow.Mode, jobID: String? = nil) {
+		let checklist = ciWorkflowReadiness(mode: mode, jobID: jobID).secretChecklistText
 		guard !checklist.isEmpty else {
 			append(.init(kind: .info, message: "\(mode.rawValue) workflow does not require GitHub secrets"))
 			return

@@ -138,6 +138,53 @@ struct GitHubActionWorkflowTests {
 	}
 
 	@Test
+	func directWorkflowCanTargetConfiguredAdditionalJob() throws {
+		let configuration = AgentConfiguration(
+			listenAddress: "127.0.0.1:8188",
+			machineId: "machine-123",
+			machineName: "Mac",
+			sharedToken: "local-runner-token",
+			tunnel: TunnelConfiguration(mode: .named),
+			jobs: [
+				BuildJob(
+					id: "xcode-debug",
+					label: "Xcode Debug",
+					workingDirectory: "",
+					checkout: true,
+					allowedRepositories: ["https://github.com/example/app.git"],
+					command: "/usr/bin/xcodebuild"
+				),
+				BuildJob(
+					id: "local-release",
+					label: "Local Release",
+					workingDirectory: "/Users/charlie/App",
+					checkout: false,
+					command: "/usr/bin/xcodebuild",
+					arguments: ["-scheme", "App", "archive"]
+				)
+			]
+		)
+
+		let workflow = try #require(GitHubActionWorkflow.make(
+			for: configuration,
+			mode: .direct,
+			jobID: "local-release"
+		))
+		let yaml = workflow.yaml
+
+		#expect(yaml.contains("job: 'local-release'"))
+		#expect(yaml.contains("checkout-metadata: 'false'"))
+		#expect(!yaml.contains("job: 'xcode-debug'"))
+	}
+
+	@Test
+	func workflowUnavailableForUnknownSelectedJob() {
+		let configuration = AgentConfiguration.sample(machineId: "machine-123")
+
+		#expect(GitHubActionWorkflow.make(for: configuration, mode: .direct, jobID: "missing") == nil)
+	}
+
+	@Test
 	func coordinatorWorkflowIncludesCoordinatorInputs() throws {
 		let configuration = AgentConfiguration(
 			machineId: "machine-123",

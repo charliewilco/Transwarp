@@ -35,12 +35,17 @@ public struct GitHubActionWorkflow: Equatable, Sendable {
 	public static func make(
 		for configuration: AgentConfiguration,
 		mode: Mode,
-		actionRef: String = "charliewilco/transwarp@main"
+		actionRef: String = "charliewilco/transwarp@main",
+		jobID: String? = nil
 	) -> GitHubActionWorkflow? {
 		if mode == .releaseEvidence {
 			return GitHubActionWorkflow(mode: mode, jobID: "", actionRef: actionRef)
 		}
-		guard let job = configuration.jobs.first, !job.id.isEmpty else {
+		let requestedJobID = jobID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+		let job = requestedJobID.isEmpty
+			? configuration.jobs.first
+			: configuration.jobs.first { $0.id == requestedJobID }
+		guard let job, !job.id.isEmpty else {
 			return nil
 		}
 		return GitHubActionWorkflow(

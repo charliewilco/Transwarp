@@ -57,17 +57,24 @@ struct CIWorkflowReadiness: Equatable {
 	init(
 		mode: GitHubActionWorkflow.Mode,
 		configuration: AgentConfiguration?,
-		configurationIssues: [String] = []
+		configurationIssues: [String] = [],
+		jobID: String? = nil
 	) {
 		self.mode = mode
-		items = Self.items(for: mode, configuration: configuration, configurationIssues: configurationIssues)
+		items = Self.items(
+			for: mode,
+			configuration: configuration,
+			configurationIssues: configurationIssues,
+			jobID: jobID
+		)
 		secretGroups = Self.secretGroups(for: mode, configuration: configuration)
 	}
 
 	private static func items(
 		for mode: GitHubActionWorkflow.Mode,
 		configuration: AgentConfiguration?,
-		configurationIssues: [String]
+		configurationIssues: [String],
+		jobID: String?
 	) -> [Item] {
 		var items: [Item] = []
 
@@ -87,7 +94,7 @@ struct CIWorkflowReadiness: Equatable {
 
 		switch mode {
 		case .selfHosted:
-			items.append(jobItem(configuration))
+			items.append(jobItem(configuration, jobID: jobID))
 			items.append(.init(
 				state: .warning,
 				title: "GitHub runner",
@@ -99,7 +106,7 @@ struct CIWorkflowReadiness: Equatable {
 				detail: "Workflow records hardware, Xcode, and signing readiness evidence before the build"
 			))
 		case .direct:
-			items.append(jobItem(configuration))
+			items.append(jobItem(configuration, jobID: jobID))
 			items.append(runnerTokenItem(configuration))
 			items.append(namedTunnelItem(configuration))
 			items.append(.init(
@@ -108,7 +115,7 @@ struct CIWorkflowReadiness: Equatable {
 				detail: "Add the direct dispatch secrets to the repository before running the copied workflow"
 			))
 		case .coordinator:
-			items.append(jobItem(configuration))
+			items.append(jobItem(configuration, jobID: jobID))
 			items.append(coordinatorRunnerTokenItem(configuration))
 			items.append(namedTunnelItem(configuration))
 			items.append(registrationItem(configuration))
@@ -217,12 +224,23 @@ struct CIWorkflowReadiness: Equatable {
 		])
 	}
 
-	private static func jobItem(_ configuration: AgentConfiguration?) -> Item {
-		guard let job = configuration?.jobs.first, !job.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+	private static func jobItem(_ configuration: AgentConfiguration?, jobID: String?) -> Item {
+		guard let configuration, !configuration.jobs.isEmpty else {
 			return .init(
 				state: .blocked,
 				title: "Job",
 				detail: "Configure at least one build job"
+			)
+		}
+		let requestedJobID = jobID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+		let job = requestedJobID.isEmpty
+			? configuration.jobs.first
+			: configuration.jobs.first { $0.id == requestedJobID }
+		guard let job, !job.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+			return .init(
+				state: .blocked,
+				title: "Job",
+				detail: "Selected job is not configured"
 			)
 		}
 		return .init(

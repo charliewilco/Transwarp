@@ -54,6 +54,51 @@ struct CIWorkflowReadinessTests {
 	}
 
 	@Test
+	func directWorkflowReadinessUsesSelectedAdditionalJob() {
+		var configuration = AgentConfiguration.sample(machineId: "machine-123")
+		configuration.jobs.append(BuildJob(
+			id: "local-release",
+			label: "Local Release",
+			workingDirectory: "/Users/charlie/App",
+			checkout: false,
+			command: "/usr/bin/xcodebuild"
+		))
+
+		let readiness = CIWorkflowReadiness(
+			mode: .direct,
+			configuration: configuration,
+			jobID: "local-release"
+		)
+
+		#expect(readiness.items.contains(.init(
+			state: .ready,
+			title: "Job",
+			detail: "local-release runs xcodebuild"
+		)))
+		#expect(!readiness.items.contains(.init(
+			state: .ready,
+			title: "Job",
+			detail: "xcode-debug runs xcodebuild"
+		)))
+	}
+
+	@Test
+	func directWorkflowReadinessBlocksForMissingSelectedJob() {
+		let readiness = CIWorkflowReadiness(
+			mode: .direct,
+			configuration: AgentConfiguration.sample(machineId: "machine-123"),
+			jobID: "missing"
+		)
+
+		#expect(readiness.state == .blocked)
+		#expect(readiness.items.contains(.init(
+			state: .blocked,
+			title: "Job",
+			detail: "Selected job is not configured"
+		)))
+	}
+
+	@Test
 	func coordinatorWorkflowRequiresRegistrationLifecycle() {
 		var configuration = AgentConfiguration.sample(machineId: "machine-123")
 		configuration.ciRegistrationURL = nil
