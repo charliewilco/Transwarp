@@ -119,12 +119,6 @@ func ValidateReleaseCollectionPreflight(options ReleaseCollectionPreflightOption
 			return errors.New("CI dispatch evidence is required; run inside GitHub Actions with named-tunnel collection, provide TRANSWARP_CI_DISPATCH_EVIDENCE, or set TRANSWARP_COLLECT_ALLOW_INCOMPLETE=1")
 		}
 		if releaseGeneratesCIDispatchEvidence(options, collectNamedTunnel) {
-			if strings.TrimSpace(options.GitHub.RunnerOS) != "" && strings.TrimSpace(options.GitHub.RunnerOS) != "macOS" {
-				return errors.New("CI dispatch evidence must run on RUNNER_OS=macOS, got " + strings.TrimSpace(options.GitHub.RunnerOS))
-			}
-			if strings.TrimSpace(options.GitHub.RunnerArch) != "" && strings.TrimSpace(options.GitHub.RunnerArch) != "ARM64" {
-				return errors.New("CI dispatch evidence must run on RUNNER_ARCH=ARM64, got " + strings.TrimSpace(options.GitHub.RunnerArch))
-			}
 			if err := validateGitHubActionsContext(options.GitHub); err != nil {
 				return err
 			}

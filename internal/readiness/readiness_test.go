@@ -2392,7 +2392,7 @@ func TestCIDispatchEvidenceRejectsLocalDispatchLog(t *testing.T) {
 	}
 }
 
-func TestCIDispatchEvidencePassesWithGitHubActionsReceipt(t *testing.T) {
+func TestCIDispatchEvidencePassesWithHostedGitHubActionsReceipt(t *testing.T) {
 	dir := t.TempDir()
 	err := os.WriteFile(filepath.Join(dir, "named-tunnel-coordinator-smoke.log"), []byte("diagnosis passed\npublic url: https://transwarp.example.com\n{\"kind\":\"coordinator\",\"message\":\"accepted runner build\",\"build_id\":\"build-123\",\"job_id\":\"echo\",\"request_id\":\"request-123\",\"machine_id\":\"machine-123\",\"public_url\":\"https://transwarp.example.com\"}\nhello through named coordinator tunnel\n[build] passed\n[result] recorded passed\n[result] request_id request-123\n[result] build_id build-123\n[result] job_id echo\n[result] machine_id machine-123\n[result] public_url https://transwarp.example.com\n"), 0o600)
 	if err != nil {
@@ -2413,8 +2413,8 @@ func TestCIDispatchEvidencePassesWithGitHubActionsReceipt(t *testing.T) {
 		"job": "release-evidence",
 		"repository": "charliewilco/transwarp",
 		"sha": "0123456789abcdef0123456789abcdef01234567",
-		"runner_os": "macOS",
-		"runner_arch": "ARM64",
+		"runner_os": "Linux",
+		"runner_arch": "X64",
 		"public_url": "https://transwarp.example.com",
 		"build_id": "build-123",
 		"job_id": "echo",
@@ -2830,62 +2830,6 @@ func TestCIDispatchEvidenceRequiresRunnerContext(t *testing.T) {
 		if !strings.Contains(check.Detail, field) {
 			t.Fatalf("expected %s detail, got %+v", field, check)
 		}
-	}
-}
-
-func TestCIDispatchEvidenceRequiresAppleSiliconRunnerContext(t *testing.T) {
-	tests := []struct {
-		name  string
-		field string
-		value string
-	}{
-		{name: "runner os", field: "runner_os", value: "Linux"},
-		{name: "runner arch", field: "runner_arch", value: "X64"},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			dir := t.TempDir()
-			err := os.WriteFile(filepath.Join(dir, "named-tunnel-coordinator-smoke.log"), []byte("diagnosis passed\n{\"build_id\":\"build-123\"}\n[result] recorded passed\n"), 0o600)
-			if err != nil {
-				t.Fatal(err)
-			}
-			values := map[string]string{
-				"runner_os":   "macOS",
-				"runner_arch": "ARM64",
-			}
-			values[test.field] = test.value
-			path := filepath.Join(dir, "ci-dispatch.json")
-			err = os.WriteFile(path, []byte(`{
-				"kind": "transwarp-ci-dispatch-evidence",
-				"schema_version": 1,
-				"generated_at": "2026-07-26T11:30:00Z",
-				"status": "pass",
-				"github_actions": true,
-				"result_recorded": true,
-				"run_id": "1234",
-				"run_attempt": "2",
-				"workflow": "Release Evidence",
-				"job": "release-evidence",
-				"repository": "charliewilco/transwarp",
-				"sha": "0123456789abcdef0123456789abcdef01234567",
-				"runner_os": "`+values["runner_os"]+`",
-				"runner_arch": "`+values["runner_arch"]+`",
-				"build_id": "build-123",
-				"source_log": "named-tunnel-coordinator-smoke.log"
-			}`), 0o600)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			check := ciDispatchEvidenceCheck(path)
-			if check.Status != StatusMissing {
-				t.Fatalf("expected missing check, got %+v", check)
-			}
-			if !strings.Contains(check.Detail, test.field) {
-				t.Fatalf("expected %s detail, got %+v", test.field, check)
-			}
-		})
 	}
 }
 

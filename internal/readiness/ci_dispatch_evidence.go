@@ -210,8 +210,8 @@ func validateGitHubActionsContext(context GitHubActionsEvidenceContext) error {
 		requireNonEmptyString(receipt, "job"),
 		requireGitHubRepository(receipt, "repository"),
 		requireGitSHA(receipt, "sha"),
-		requireString(receipt, "runner_os", "macOS"),
-		requireString(receipt, "runner_arch", "ARM64"),
+		requireNonEmptyString(receipt, "runner_os"),
+		requireNonEmptyString(receipt, "runner_arch"),
 	}
 	missing := []string{}
 	for _, check := range checks {

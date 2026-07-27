@@ -451,15 +451,15 @@ if TRANSWARP_EVIDENCE_DIR="$INVALID_RUNNER_EVIDENCE_DIR" \
 	GITHUB_JOB=release-evidence \
 	GITHUB_REPOSITORY=charliewilco/transwarp \
 	GITHUB_SHA=0123456789abcdef0123456789abcdef01234567 \
-	RUNNER_OS=Linux \
+	RUNNER_OS= \
 	RUNNER_ARCH=X64 \
 	./scripts/collect-release-evidence.sh 2> "$INVALID_RUNNER_STDERR"; then
-	echo "expected invalid release runner context to fail" >&2
+	echo "expected missing release runner context to fail" >&2
 	exit 1
 fi
 
-if ! grep -q "CI dispatch evidence must run on RUNNER_OS=macOS" "$INVALID_RUNNER_STDERR"; then
-	echo "invalid release runner failure did not explain RUNNER_OS requirement" >&2
+if ! grep -q "GitHub Actions context incomplete: runner_os" "$INVALID_RUNNER_STDERR"; then
+	echo "missing release runner failure did not explain RUNNER_OS requirement" >&2
 	exit 1
 fi
 

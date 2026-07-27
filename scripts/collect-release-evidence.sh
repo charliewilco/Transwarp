@@ -90,8 +90,6 @@ require_ci_dispatch_env() {
 	is_set "${GITHUB_SHA:-}" || fail "GITHUB_SHA is required for CI dispatch evidence"
 	is_set "${RUNNER_OS:-}" || fail "RUNNER_OS is required for CI dispatch evidence"
 	is_set "${RUNNER_ARCH:-}" || fail "RUNNER_ARCH is required for CI dispatch evidence"
-	[ "$RUNNER_OS" = "macOS" ] || fail "CI dispatch evidence must run on RUNNER_OS=macOS, got $RUNNER_OS"
-	[ "$RUNNER_ARCH" = "ARM64" ] || fail "CI dispatch evidence must run on RUNNER_ARCH=ARM64, got $RUNNER_ARCH"
 }
 
 require_strict_release_policy_env() {

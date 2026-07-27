@@ -81,11 +81,17 @@ func TestValidateReleaseCollectionPreflightRejectsMissingStrictCleanMacEvidence(
 	}
 }
 
-func TestValidateReleaseCollectionPreflightRejectsInvalidGitHubRunnerForGeneratedCIReceipt(t *testing.T) {
+func TestValidateReleaseCollectionPreflightAcceptsHostedGitHubRunnerForGeneratedCIReceipt(t *testing.T) {
+	dir := t.TempDir()
+	cleanMacEvidence := filepath.Join(dir, "clean-mac-evidence.json")
+	if err := os.WriteFile(cleanMacEvidence, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	options := strictReleasePreflightOptions(t)
 	options.CollectNamedTunnel = "1"
 	options.CloudflareTunnelTokenSet = true
 	options.PublicURL = "https://transwarp.example.com"
+	options.CleanMacEvidencePath = cleanMacEvidence
 	options.GitHub = GitHubActionsEvidenceContext{
 		GitHubActions: true,
 		RunID:         "1234",
@@ -99,8 +105,8 @@ func TestValidateReleaseCollectionPreflightRejectsInvalidGitHubRunnerForGenerate
 	}
 
 	err := ValidateReleaseCollectionPreflight(options)
-	if err == nil || !strings.Contains(err.Error(), "RUNNER_OS=macOS") {
-		t.Fatalf("expected runner_os error, got %v", err)
+	if err != nil {
+		t.Fatalf("expected hosted GitHub runner context to pass, got %v", err)
 	}
 }
 
