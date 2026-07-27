@@ -293,6 +293,7 @@ func (server *Server) deregister(response http.ResponseWriter, request *http.Req
 
 	server.mu.Lock()
 	delete(server.targets, target.MachineID)
+	server.releaseUnacceptedDispatchesForTargetLocked(target.MachineID)
 	err := server.saveStateLocked()
 	server.mu.Unlock()
 	if err != nil {
@@ -650,6 +651,22 @@ func (server *Server) releaseActiveDispatchLocked(requestID string) {
 	}
 	server.releaseTargetReservationLocked(active.TargetMachineID)
 	delete(server.active, requestID)
+}
+
+func (server *Server) releaseUnacceptedDispatchesForTargetLocked(machineID string) {
+	if machineID == "" {
+		return
+	}
+	for requestID, active := range server.active {
+		if active.TargetMachineID != machineID {
+			continue
+		}
+		if strings.TrimSpace(active.RunnerBaseURL) != "" && strings.TrimSpace(active.RunnerBuildID) != "" {
+			continue
+		}
+		server.releaseTargetReservationLocked(machineID)
+		delete(server.active, requestID)
+	}
 }
 
 func (server *Server) releaseTargetReservationLocked(machineID string) {

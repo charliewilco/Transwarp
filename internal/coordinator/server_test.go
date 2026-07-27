@@ -74,6 +74,119 @@ func TestRegisterListAndDeregisterTarget(t *testing.T) {
 	}
 }
 
+func TestDeregisterReleasesUnacceptedDispatchReservation(t *testing.T) {
+	server := newTestServer(t, Options{
+		Token:          "coord-token",
+		TranswarpToken: "runner-token",
+		PublicURL:      "https://coordinator.test",
+	})
+	testServer := httptest.NewServer(server.Handler())
+	defer testServer.Close()
+
+	registerTarget(t, testServer.URL, "coord-token", Target{
+		MachineID:        "machine-123",
+		MachineName:      "Mac Studio",
+		PublicURL:        "https://transwarp.example.com",
+		QueuedBuildLimit: 1,
+		Jobs:             []string{"xcode-debug"},
+		LeaseExpiresAt:   time.Now().Add(time.Minute),
+	})
+	activateDispatch(server, DispatchRequest{
+		MachineID: "machine-123",
+		JobID:     "xcode-debug",
+		RequestID: "run-123",
+	})
+	if _, err := server.reserveActiveDispatchTarget("run-123", "machine-123"); err != nil {
+		t.Fatalf("reserveActiveDispatchTarget returned error: %v", err)
+	}
+
+	deregisterBody := bytes.NewBufferString(`{"machine_id":"machine-123"}`)
+	request, err := http.NewRequest(http.MethodPost, testServer.URL+"/transwarp/deregister", deregisterBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Authorization", "Bearer coord-token")
+	response, err := testServer.Client().Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusNoContent {
+		t.Fatalf("unexpected deregister status: %s", response.Status)
+	}
+
+	server.mu.Lock()
+	_, active := server.active["run-123"]
+	reservations := server.targetReservations["machine-123"]
+	server.mu.Unlock()
+	if active {
+		t.Fatalf("unaccepted active dispatch remained after target deregistration: %+v", server.active)
+	}
+	if reservations != 0 {
+		t.Fatalf("target reservation remained after target deregistration: %d", reservations)
+	}
+}
+
+func TestDeregisterPreservesAcceptedDispatchForResultCallback(t *testing.T) {
+	server := newTestServer(t, Options{
+		Token:          "coord-token",
+		TranswarpToken: "runner-token",
+		PublicURL:      "https://coordinator.test",
+	})
+	testServer := httptest.NewServer(server.Handler())
+	defer testServer.Close()
+
+	registerTarget(t, testServer.URL, "coord-token", Target{
+		MachineID:      "machine-123",
+		MachineName:    "Mac Studio",
+		PublicURL:      "https://runner.example.com",
+		Jobs:           []string{"xcode-debug"},
+		LeaseExpiresAt: time.Now().Add(time.Minute),
+	})
+	activateDispatch(server, DispatchRequest{
+		MachineID: "machine-123",
+		JobID:     "xcode-debug",
+		RequestID: "run-123",
+	})
+	if _, err := server.reserveActiveDispatchTarget("run-123", "machine-123"); err != nil {
+		t.Fatalf("reserveActiveDispatchTarget returned error: %v", err)
+	}
+	if err := server.markActiveDispatchBuild("run-123", "machine-123", "https://runner.example.com", "build-123"); err != nil {
+		t.Fatal(err)
+	}
+
+	deregisterBody := bytes.NewBufferString(`{"machine_id":"machine-123"}`)
+	request, err := http.NewRequest(http.MethodPost, testServer.URL+"/transwarp/deregister", deregisterBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Authorization", "Bearer coord-token")
+	response, err := testServer.Client().Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusNoContent {
+		t.Fatalf("unexpected deregister status: %s", response.Status)
+	}
+
+	result := recordResult(t, testServer.URL, "coord-token", BuildResult{
+		BuildID:   "build-123",
+		JobID:     "xcode-debug",
+		RequestID: "run-123",
+		MachineID: "machine-123",
+		Machine:   "Mac Studio",
+		Status:    "passed",
+		ExitCode:  0,
+		PublicURL: "https://runner.example.com",
+	})
+	defer result.Body.Close()
+	if result.StatusCode != http.StatusAccepted {
+		data, _ := io.ReadAll(result.Body)
+		t.Fatalf("unexpected result status after deregistration: %s body: %s", result.Status, string(data))
+	}
+}
+
 func TestCoordinatorSeparatesCITokenFromTargetCallbackToken(t *testing.T) {
 	server := newTestServer(t, Options{
 		Token:          "coord-token",
