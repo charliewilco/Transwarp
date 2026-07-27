@@ -1,0 +1,53 @@
+name: Transwarp Coordinator Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      cancel:
+        description: Cancel an existing coordinator dispatch instead of starting a new one.
+        required: false
+        default: 'false'
+      request-id:
+        description: Existing Transwarp request ID to cancel.
+        required: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out workflow repo
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Dispatch Transwarp build through coordinator
+        id: transwarp
+        uses: charliewilco/transwarp@main
+        with:
+          mode: coordinator
+          coordinator-url: ${{ secrets.TRANSWARP_COORDINATOR_URL }}
+          coordinator-token: ${{ secrets.TRANSWARP_COORDINATOR_TOKEN }}
+          access-client-id: ${{ secrets.TRANSWARP_ACCESS_CLIENT_ID }}
+          access-client-secret: ${{ secrets.TRANSWARP_ACCESS_CLIENT_SECRET }}
+          cancel: ${{ inputs.cancel }}
+          request-id: ${{ inputs.request-id }}
+          job: xcode-debug
+          min-cpu-count: 12
+          min-memory-bytes: 34359738368
+          min-xcode-version: '16.4'
+
+      - name: Summarize selected runner
+        if: always() && steps.transwarp.outputs['build-id'] != ''
+        run: |
+          {
+            echo "### Transwarp dispatch"
+            echo ""
+            echo "- Request ID: ${{ steps.transwarp.outputs['request-id'] }}"
+            echo "- Build ID: ${{ steps.transwarp.outputs['build-id'] }}"
+            echo "- Job ID: ${{ steps.transwarp.outputs['job-id'] }}"
+            echo "- Machine ID: ${{ steps.transwarp.outputs['machine-id'] }}"
+            echo "- Public URL: ${{ steps.transwarp.outputs['public-url'] }}"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,38 @@
+name: Self-Hosted Mac Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-on-desktop:
+    runs-on: [self-hosted, macOS, ARM64, transwarp-desktop]
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Verify self-hosted Mac
+        env:
+          TRANSWARP_SELF_HOSTED_EVIDENCE: evidence/self-hosted-mac.json
+        run: |
+          mkdir -p evidence
+          ./scripts/check-self-hosted-mac.sh
+
+      - name: Build with local Xcode
+        env:
+          DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+        run: xcodebuild -scheme App -configuration Debug build
+
+      - name: Upload self-hosted evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: transwarp-self-hosted-mac-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            evidence/self-hosted-mac.json
+            evidence/self-hosted-readiness.log

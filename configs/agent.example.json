@@ -1,0 +1,43 @@
+{
+	"listen_address": "127.0.0.1:8188",
+	"machine_id": "replace-with-generated-machine-id",
+	"machine_name": "Charlies-Mac-Studio",
+	"shared_token": "keychain://co.charliewil.transwarp/replace-with-generated-machine-id/shared_token",
+	"workspace_root": "",
+	"prevent_sleep": true,
+	"redacted_values": [],
+	"ci_registration_url": "https://ci.example.com/transwarp/register",
+	"ci_heartbeat_url": "https://ci.example.com/transwarp/heartbeat",
+	"ci_deregistration_url": "https://ci.example.com/transwarp/deregister",
+	"registration_token": "keychain://co.charliewil.transwarp/replace-with-generated-machine-id/registration_token",
+	"ci_access_client_id": "replace-with-access-client-id",
+	"ci_access_client_secret": "keychain://co.charliewil.transwarp/replace-with-generated-machine-id/ci_access_client_secret",
+	"runner_access_client_id": "replace-with-runner-access-client-id",
+	"runner_access_client_secret": "keychain://co.charliewil.transwarp/replace-with-generated-machine-id/runner_access_client_secret",
+	"allowed_report_origins": ["https://ci.example.com"],
+	"heartbeat_seconds": 30,
+	"tunnel": {
+		"mode": "named",
+		"cloudflared_path": "@bundle/cloudflared",
+		"token": "keychain://co.charliewil.transwarp/replace-with-generated-machine-id/cloudflare_tunnel_token",
+		"name": "",
+		"public_url": "https://transwarp.example.com"
+	},
+	"jobs": [
+		{
+			"id": "xcode-debug",
+			"label": "Xcode Debug Build",
+			"working_directory": "",
+			"checkout": true,
+			"allowed_repositories": ["https://github.com/example/app.git"],
+			"checkout_authorization_header": "keychain://co.charliewil.transwarp/replace-with-generated-machine-id/jobs/xcode-debug/checkout_authorization_header",
+			"command": "/usr/bin/xcodebuild",
+			"arguments": ["-scheme", "App", "-configuration", "Debug", "build"],
+			"environment": {
+				"DEVELOPER_DIR": "/Applications/Xcode.app/Contents/Developer"
+			},
+			"redacted_environment_keys": ["MATCH_PASSWORD"],
+			"timeout_seconds": 3600
+		}
+	]
+}

@@ -1,0 +1,46 @@
+name: Transwarp Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      cancel:
+        description: Cancel an existing direct runner build instead of starting a new one.
+        required: false
+        default: 'false'
+      tail:
+        description: Tail an existing direct runner build instead of starting a new one.
+        required: false
+        default: 'false'
+      build-id:
+        description: Build ID to cancel or tail.
+        required: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out workflow repo
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Dispatch Transwarp build
+        id: transwarp
+        uses: charliewilco/transwarp@main
+        with:
+          url: ${{ secrets.TRANSWARP_URL }}
+          token: ${{ secrets.TRANSWARP_TOKEN }}
+          access-client-id: ${{ secrets.TRANSWARP_ACCESS_CLIENT_ID }}
+          access-client-secret: ${{ secrets.TRANSWARP_ACCESS_CLIENT_SECRET }}
+          cancel: ${{ inputs.cancel }}
+          tail: ${{ inputs.tail }}
+          build-id: ${{ inputs.build-id }}
+          job: xcode-debug
+          report-url: ${{ secrets.TRANSWARP_REPORT_URL }}
+          report-token: ${{ secrets.TRANSWARP_REPORT_TOKEN }}
+          min-cpu-count: 12
+          min-memory-bytes: 34359738368
+          min-xcode-version: '16.4'

@@ -1,0 +1,316 @@
+name: Transwarp Dispatch
+description: Dispatch a GitHub Actions job to a Transwarp Mac through a direct runner tunnel or coordinator.
+
+inputs:
+  mode:
+    description: "Dispatch mode: direct or coordinator."
+    required: false
+    default: direct
+  version:
+    description: Transwarp Go module version to run.
+    required: false
+    default: main
+  diagnose:
+    description: Run transwarp-diagnose before dispatch.
+    required: false
+    default: "true"
+  allow-http:
+    description: Allow http URLs for local diagnostics.
+    required: false
+    default: "false"
+  cancel:
+    description: Cancel an active Transwarp dispatch instead of starting one.
+    required: false
+    default: "false"
+  tail:
+    description: Tail an existing direct runner build instead of starting one.
+    required: false
+    default: "false"
+  url:
+    description: Direct Transwarp runner base URL.
+    required: false
+  token:
+    description: Direct Transwarp runner bearer token. In coordinator mode, provide only to let diagnostics probe the selected runner directly.
+    required: false
+  coordinator-url:
+    description: Transwarp coordinator base URL.
+    required: false
+  coordinator-token:
+    description: Transwarp coordinator bearer token.
+    required: false
+  access-client-id:
+    description: Cloudflare Access service token client ID for Transwarp endpoint calls.
+    required: false
+  access-client-secret:
+    description: Cloudflare Access service token client secret for Transwarp endpoint calls.
+    required: false
+  job:
+    description: Configured Transwarp job ID. Use only letters, numbers, dots, underscores, or hyphens, up to 128 bytes.
+    required: false
+  request-id:
+    description: Stable request ID for this workflow attempt. Use only letters, numbers, dots, underscores, or hyphens, up to 256 bytes. Defaults to github.run_id-github.run_attempt-github.job.
+    required: false
+  build-id:
+    description: Existing direct runner build ID to cancel or tail. Use only letters, numbers, dots, underscores, or hyphens, up to 128 bytes.
+    required: false
+  repo-url:
+    description: Repository URL to build. Defaults to the current GitHub repository clone URL.
+    required: false
+  ref:
+    description: Git ref to check out on the Mac. Defaults to github.ref.
+    required: false
+  commit:
+    description: Commit SHA to check out on the Mac. Defaults to github.sha.
+    required: false
+  machine-id:
+    description: Optional registered machine ID when dispatching or diagnosing through a coordinator. Use only letters, numbers, dots, underscores, or hyphens, up to 128 bytes.
+    required: false
+  min-cpu-count:
+    description: Optional minimum CPU core count for the selected Mac.
+    required: false
+  min-memory-bytes:
+    description: Optional minimum memory bytes for the selected Mac.
+    required: false
+  min-xcode-version:
+    description: Optional minimum Xcode version for the selected Mac.
+    required: false
+  report-url:
+    description: Optional CI result callback URL for direct runner dispatch.
+    required: false
+  report-token:
+    description: Optional CI result callback bearer token for direct runner dispatch.
+    required: false
+  timeout:
+    description: Overall dispatch timeout.
+    required: false
+    default: "30m"
+
+outputs:
+  request-id:
+    description: Stable Transwarp request ID used for this dispatch or coordinator cancellation.
+    value: ${{ steps.dispatch.outputs.request-id }}
+  build-id:
+    description: Runner build ID accepted by the selected Mac when dispatch starts.
+    value: ${{ steps.dispatch.outputs.build-id }}
+  job-id:
+    description: Transwarp job ID accepted by the selected Mac.
+    value: ${{ steps.dispatch.outputs.job-id }}
+  machine-id:
+    description: Selected Transwarp machine ID for coordinator dispatches.
+    value: ${{ steps.dispatch.outputs.machine-id }}
+  public-url:
+    description: Selected runner public URL for coordinator dispatches.
+    value: ${{ steps.dispatch.outputs.public-url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Dispatch Transwarp build
+      id: dispatch
+      shell: bash
+      env:
+        INPUT_MODE: "${{ inputs.mode }}"
+        INPUT_VERSION: "${{ inputs.version }}"
+        INPUT_DIAGNOSE: "${{ inputs.diagnose }}"
+        INPUT_ALLOW_HTTP: "${{ inputs.allow-http }}"
+        INPUT_CANCEL: "${{ inputs.cancel }}"
+        INPUT_TAIL: "${{ inputs.tail }}"
+        INPUT_URL: "${{ inputs.url }}"
+        INPUT_TOKEN: "${{ inputs.token }}"
+        INPUT_COORDINATOR_URL: "${{ inputs.coordinator-url }}"
+        INPUT_COORDINATOR_TOKEN: "${{ inputs.coordinator-token }}"
+        INPUT_ACCESS_CLIENT_ID: "${{ inputs.access-client-id }}"
+        INPUT_ACCESS_CLIENT_SECRET: "${{ inputs.access-client-secret }}"
+        INPUT_JOB: "${{ inputs.job }}"
+        INPUT_REQUEST_ID: "${{ inputs.request-id }}"
+        INPUT_BUILD_ID: "${{ inputs.build-id }}"
+        INPUT_REPO_URL: "${{ inputs.repo-url }}"
+        INPUT_REF: "${{ inputs.ref }}"
+        INPUT_COMMIT: "${{ inputs.commit }}"
+        INPUT_MACHINE_ID: "${{ inputs.machine-id }}"
+        INPUT_MIN_CPU_COUNT: "${{ inputs.min-cpu-count }}"
+        INPUT_MIN_MEMORY_BYTES: "${{ inputs.min-memory-bytes }}"
+        INPUT_MIN_XCODE_VERSION: "${{ inputs.min-xcode-version }}"
+        INPUT_REPORT_URL: "${{ inputs.report-url }}"
+        INPUT_REPORT_TOKEN: "${{ inputs.report-token }}"
+        INPUT_TIMEOUT: "${{ inputs.timeout }}"
+      run: |
+        set -euo pipefail
+
+        if ! command -v go >/dev/null 2>&1; then
+          echo "Transwarp Dispatch requires Go on the GitHub runner. Add actions/setup-go before this action." >&2
+          exit 1
+        fi
+
+        case "$INPUT_MODE" in
+          direct|coordinator) ;;
+          *)
+            echo "mode must be 'direct' or 'coordinator'" >&2
+            exit 1
+            ;;
+        esac
+        require_unsigned_integer() {
+          name="$1"
+          value="$2"
+          if [ -z "$value" ]; then
+            return 0
+          fi
+          case "$value" in
+            *[!0-9]*)
+              echo "$name must be an unsigned integer" >&2
+              exit 1
+              ;;
+          esac
+        }
+        require_stable_identifier() {
+          name="$1"
+          value="$2"
+          limit="$3"
+          if [ -z "$value" ]; then
+            return 0
+          fi
+          case "$value" in
+            *[!A-Za-z0-9._-]*)
+              echo "$name may only contain letters, numbers, dots, underscores, or hyphens" >&2
+              exit 1
+              ;;
+          esac
+          bytes="$(printf '%s' "$value" | wc -c | tr -d ' ')"
+          if [ "$bytes" -gt "$limit" ]; then
+            echo "$name must be at most $limit bytes" >&2
+            exit 1
+          fi
+        }
+        normalize_boolean() {
+          name="$1"
+          value="$2"
+          case "$value" in
+            true|1|yes)
+              printf 'true'
+              ;;
+            false|0|no)
+              printf 'false'
+              ;;
+            *)
+              echo "$name must be true, 1, yes, false, 0, or no" >&2
+              exit 1
+              ;;
+          esac
+        }
+
+        INPUT_DIAGNOSE="$(normalize_boolean diagnose "$INPUT_DIAGNOSE")"
+        INPUT_ALLOW_HTTP="$(normalize_boolean allow-http "$INPUT_ALLOW_HTTP")"
+        INPUT_CANCEL="$(normalize_boolean cancel "$INPUT_CANCEL")"
+        INPUT_TAIL="$(normalize_boolean tail "$INPUT_TAIL")"
+        require_unsigned_integer min-cpu-count "$INPUT_MIN_CPU_COUNT"
+        require_unsigned_integer min-memory-bytes "$INPUT_MIN_MEMORY_BYTES"
+        EFFECTIVE_REQUEST_ID="${INPUT_REQUEST_ID:-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}-${GITHUB_JOB:-job}}"
+        require_stable_identifier request-id "$EFFECTIVE_REQUEST_ID" 256
+        require_stable_identifier job "$INPUT_JOB" 128
+        require_stable_identifier build-id "$INPUT_BUILD_ID" 128
+        require_stable_identifier machine-id "$INPUT_MACHINE_ID" 128
+
+        if [ "$INPUT_CANCEL" = "true" ] && [ "$INPUT_TAIL" = "true" ]; then
+          echo "cancel and tail cannot both be true" >&2
+          exit 1
+        fi
+        if [ "$INPUT_CANCEL" != "true" ] && [ "$INPUT_TAIL" != "true" ] && [ -z "$INPUT_JOB" ]; then
+          echo "job is required" >&2
+          exit 1
+        fi
+        if [ "$INPUT_TAIL" = "true" ] && [ "$INPUT_MODE" != "direct" ]; then
+          echo "tail is only supported in direct mode" >&2
+          exit 1
+        fi
+        if [ "$INPUT_TAIL" = "true" ] && [ -z "$INPUT_BUILD_ID" ]; then
+          echo "build-id is required when tailing a direct runner build" >&2
+          exit 1
+        fi
+        if [ "$INPUT_CANCEL" = "true" ] && [ "$INPUT_MODE" = "direct" ] && [ -z "$INPUT_BUILD_ID" ]; then
+          echo "build-id is required when canceling a direct runner build" >&2
+          exit 1
+        fi
+        if [ "$INPUT_CANCEL" = "true" ] && [ "$INPUT_MODE" = "coordinator" ] && [ -z "$INPUT_REQUEST_ID" ]; then
+          echo "request-id is required when canceling a coordinator dispatch" >&2
+          exit 1
+        fi
+
+        if [ -n "$INPUT_ACCESS_CLIENT_ID" ] && [ -z "$INPUT_ACCESS_CLIENT_SECRET" ]; then
+          echo "access-client-secret is required when access-client-id is set" >&2
+          exit 1
+        fi
+        if [ -n "$INPUT_ACCESS_CLIENT_SECRET" ] && [ -z "$INPUT_ACCESS_CLIENT_ID" ]; then
+          echo "access-client-id is required when access-client-secret is set" >&2
+          exit 1
+        fi
+        if [ -n "$INPUT_REPORT_URL" ] && [ -z "$INPUT_REPORT_TOKEN" ]; then
+          echo "report-token is required when report-url is set" >&2
+          exit 1
+        fi
+        if [ -n "$INPUT_REPORT_TOKEN" ] && [ -z "$INPUT_REPORT_URL" ]; then
+          echo "report-url is required when report-token is set" >&2
+          exit 1
+        fi
+        if [ "$INPUT_MODE" != "direct" ] && { [ -n "$INPUT_REPORT_URL" ] || [ -n "$INPUT_REPORT_TOKEN" ]; }; then
+          echo "report-url and report-token are only supported in direct mode" >&2
+          exit 1
+        fi
+
+        if [ "$INPUT_TAIL" = "true" ]; then
+          export TRANSWARP_JOB=""
+        else
+          export TRANSWARP_JOB="$INPUT_JOB"
+        fi
+        export TRANSWARP_REQUEST_ID="$EFFECTIVE_REQUEST_ID"
+        export TRANSWARP_BUILD_ID="$INPUT_BUILD_ID"
+        if [ -n "$INPUT_REPO_URL" ]; then
+          export TRANSWARP_REPO_URL="$INPUT_REPO_URL"
+        elif [ -n "${GITHUB_REPOSITORY:-}" ]; then
+          export TRANSWARP_REPO_URL="${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY.git"
+        else
+          export TRANSWARP_REPO_URL=""
+        fi
+        export TRANSWARP_REF="${INPUT_REF:-${GITHUB_REF:-}}"
+        export TRANSWARP_COMMIT="${INPUT_COMMIT:-${GITHUB_SHA:-}}"
+        export TRANSWARP_MACHINE_ID="$INPUT_MACHINE_ID"
+        export TRANSWARP_MIN_CPU_COUNT="$INPUT_MIN_CPU_COUNT"
+        export TRANSWARP_MIN_MEMORY_BYTES="$INPUT_MIN_MEMORY_BYTES"
+        export TRANSWARP_MIN_XCODE_VERSION="$INPUT_MIN_XCODE_VERSION"
+        export TRANSWARP_ACCESS_CLIENT_ID="$INPUT_ACCESS_CLIENT_ID"
+        export TRANSWARP_ACCESS_CLIENT_SECRET="$INPUT_ACCESS_CLIENT_SECRET"
+        if [ "$INPUT_MODE" = "direct" ]; then
+          if [ -z "$INPUT_URL" ] || [ -z "$INPUT_TOKEN" ]; then
+            echo "url and token are required for direct mode" >&2
+            exit 1
+          fi
+          export TRANSWARP_URL="$INPUT_URL"
+          export TRANSWARP_TOKEN="$INPUT_TOKEN"
+          export TRANSWARP_REPORT_URL="$INPUT_REPORT_URL"
+          export TRANSWARP_REPORT_TOKEN="$INPUT_REPORT_TOKEN"
+        else
+          if [ -z "$INPUT_COORDINATOR_URL" ] || [ -z "$INPUT_COORDINATOR_TOKEN" ]; then
+            echo "coordinator-url and coordinator-token are required for coordinator mode" >&2
+            exit 1
+          fi
+          export TRANSWARP_COORDINATOR_URL="$INPUT_COORDINATOR_URL"
+          export TRANSWARP_COORDINATOR_TOKEN="$INPUT_COORDINATOR_TOKEN"
+          if [ -n "$INPUT_TOKEN" ]; then
+            export TRANSWARP_TOKEN="$INPUT_TOKEN"
+          else
+            unset TRANSWARP_TOKEN
+          fi
+        fi
+
+        if [ "$INPUT_CANCEL" != "true" ] && [ "$INPUT_TAIL" != "true" ] && [ "$INPUT_DIAGNOSE" = "true" ]; then
+          if [ "$INPUT_ALLOW_HTTP" = "true" ]; then
+            go run "github.com/charliewilco/transwarp/cmd/transwarp-diagnose@$INPUT_VERSION" -allow-http
+          else
+            go run "github.com/charliewilco/transwarp/cmd/transwarp-diagnose@$INPUT_VERSION"
+          fi
+        fi
+
+        if [ "$INPUT_CANCEL" = "true" ]; then
+          go run "github.com/charliewilco/transwarp/cmd/transwarp-dispatch@$INPUT_VERSION" -timeout "$INPUT_TIMEOUT" -cancel
+        else
+          go run "github.com/charliewilco/transwarp/cmd/transwarp-dispatch@$INPUT_VERSION" -timeout "$INPUT_TIMEOUT"
+        fi

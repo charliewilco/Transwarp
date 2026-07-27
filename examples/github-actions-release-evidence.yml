@@ -1,0 +1,85 @@
+name: Transwarp Release Evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      collect-named-tunnel:
+        description: Run the live named-tunnel coordinator smoke in this workflow.
+        required: false
+        default: 'true'
+      named-tunnel-evidence:
+        description: Existing named-tunnel receipt path; use only with collect-named-tunnel=false.
+        required: false
+      ci-dispatch-evidence:
+        description: Existing CI-dispatch receipt path; required with named-tunnel-evidence when collect-named-tunnel=false.
+        required: false
+      clean-mac-evidence:
+        description: Optional path to a clean-Mac evidence JSON receipt already present in the workspace.
+        required: false
+
+jobs:
+  named-tunnel-coordinator-smoke:
+    runs-on: [self-hosted, macOS, ARM64, transwarp-desktop]
+    timeout-minutes: 45
+    steps:
+      - name: Check out Transwarp
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Preflight release inputs
+        env:
+          TRANSWARP_COLLECT_NAMED_TUNNEL: ${{ inputs.collect-named-tunnel }}
+          TRANSWARP_NAMED_TUNNEL_LAUNCH_MODE: app
+          TRANSWARP_SELF_HOSTED_EVIDENCE: .build/release-evidence/self-hosted-mac.json
+          TRANSWARP_NAMED_TUNNEL_EVIDENCE: ${{ inputs.named-tunnel-evidence }}
+          TRANSWARP_CI_DISPATCH_EVIDENCE: ${{ inputs.ci-dispatch-evidence }}
+          TRANSWARP_NOTARIZE_REQUESTED: ${{ secrets.TRANSWARP_NOTARIZE }}
+          TRANSWARP_CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.TRANSWARP_CLOUDFLARE_TUNNEL_TOKEN }}
+          TRANSWARP_PUBLIC_URL: ${{ secrets.TRANSWARP_PUBLIC_URL }}
+          TRANSWARP_EXPECTED_CLOUDFLARED_VERSION: ${{ secrets.TRANSWARP_EXPECTED_CLOUDFLARED_VERSION }}
+          TRANSWARP_ACCESS_CLIENT_ID: ${{ secrets.TRANSWARP_ACCESS_CLIENT_ID }}
+          TRANSWARP_ACCESS_CLIENT_SECRET: ${{ secrets.TRANSWARP_ACCESS_CLIENT_SECRET }}
+          TRANSWARP_CLEAN_MAC_EVIDENCE: ${{ inputs.clean-mac-evidence }}
+          SIGN_IDENTITY: ${{ secrets.TRANSWARP_SIGN_IDENTITY }}
+          APPLE_KEYCHAIN_PROFILE: ${{ secrets.APPLE_KEYCHAIN_PROFILE }}
+        run: go run ./cmd/transwarp-audit -check-release-collection-inputs
+
+      - name: Collect release evidence
+        env:
+          TRANSWARP_COLLECT_NAMED_TUNNEL: ${{ inputs.collect-named-tunnel }}
+          TRANSWARP_NAMED_TUNNEL_LAUNCH_MODE: app
+          TRANSWARP_SELF_HOSTED_EVIDENCE: .build/release-evidence/self-hosted-mac.json
+          TRANSWARP_NAMED_TUNNEL_EVIDENCE: ${{ inputs.named-tunnel-evidence }}
+          TRANSWARP_CI_DISPATCH_EVIDENCE: ${{ inputs.ci-dispatch-evidence }}
+          TRANSWARP_NOTARIZE_REQUESTED: ${{ secrets.TRANSWARP_NOTARIZE }}
+          TRANSWARP_CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.TRANSWARP_CLOUDFLARE_TUNNEL_TOKEN }}
+          TRANSWARP_PUBLIC_URL: ${{ secrets.TRANSWARP_PUBLIC_URL }}
+          TRANSWARP_EXPECTED_CLOUDFLARED_VERSION: ${{ secrets.TRANSWARP_EXPECTED_CLOUDFLARED_VERSION }}
+          TRANSWARP_ACCESS_CLIENT_ID: ${{ secrets.TRANSWARP_ACCESS_CLIENT_ID }}
+          TRANSWARP_ACCESS_CLIENT_SECRET: ${{ secrets.TRANSWARP_ACCESS_CLIENT_SECRET }}
+          TRANSWARP_CLEAN_MAC_EVIDENCE: ${{ inputs.clean-mac-evidence }}
+          SIGN_IDENTITY: ${{ secrets.TRANSWARP_SIGN_IDENTITY }}
+          APPLE_KEYCHAIN_PROFILE: ${{ secrets.APPLE_KEYCHAIN_PROFILE }}
+        run: ./scripts/collect-release-evidence.sh
+
+      - name: Show audit summary
+        if: always()
+        run: |
+          test -f .build/release-evidence/transwarp-audit.json || {
+            echo "transwarp-audit.json was not produced" >&2
+            exit 1
+          }
+          go run ./cmd/transwarp-audit -summary -allow-incomplete -report .build/release-evidence/transwarp-audit.json
+
+      - name: Upload evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: transwarp-release-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            .build/release-evidence/
+            .build/Transwarp-release.zip
