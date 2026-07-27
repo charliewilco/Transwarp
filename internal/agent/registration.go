@@ -40,6 +40,8 @@ type BuildLoad struct {
 	QueuedBuildLimit int
 }
 
+const minimumRegistrationLease = 30 * time.Second
+
 type RegistrationStatus struct {
 	Configured     bool       `json:"configured"`
 	State          string     `json:"state"`
@@ -256,7 +258,11 @@ func (registrar *Registrar) leaseDuration() time.Duration {
 	if heartbeat == 0 {
 		heartbeat = 30
 	}
-	return time.Duration(heartbeat*3) * time.Second
+	duration := time.Duration(heartbeat*3) * time.Second
+	if duration < minimumRegistrationLease {
+		return minimumRegistrationLease
+	}
+	return duration
 }
 
 type registrationError struct {

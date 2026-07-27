@@ -7,6 +7,7 @@ COORDINATOR_PORT="${TRANSWARP_SMOKE_COORDINATOR_PORT:-18388}"
 RUNNER_PORT="${TRANSWARP_SMOKE_RUNNER_PORT:-18398}"
 COORDINATOR_READY_ATTEMPTS="${TRANSWARP_SMOKE_COORDINATOR_READY_ATTEMPTS:-100}"
 TARGET_READY_ATTEMPTS="${TRANSWARP_SMOKE_TARGET_READY_ATTEMPTS:-240}"
+PUBLIC_HEALTH_ATTEMPTS="${TRANSWARP_SMOKE_PUBLIC_HEALTH_ATTEMPTS:-300}"
 CLOUDFLARED_PATH="${CLOUDFLARED_PATH:-$(command -v cloudflared || true)}"
 QUICK_TUNNEL_EVIDENCE="${TRANSWARP_QUICK_TUNNEL_EVIDENCE:-}"
 TMPDIR="$(mktemp -d "${TMPDIR:-/tmp}/transwarp-cloudflare-coordinator-smoke.XXXXXX")"
@@ -138,7 +139,7 @@ if [ -z "$PUBLIC_URL" ] || ! printf "%s" "$PUBLIC_URL" | grep -q 'trycloudflare\
 fi
 
 HEALTH_READY=0
-for _ in $(seq 1 150); do
+for _ in $(seq 1 "$PUBLIC_HEALTH_ATTEMPTS"); do
 	if public_health; then
 		HEALTH_READY=1
 		break
@@ -222,6 +223,9 @@ QUICK_TUNNEL_RECEIPT="${QUICK_TUNNEL_EVIDENCE:-$TMPDIR/quick-tunnel-coordinator-
 	-quick-tunnel-targets-before-dispatch "$TARGETS_BEFORE_DISPATCH_LOG" \
 	-quick-tunnel-targets-after-deregister "$TARGETS_AFTER_DEREGISTER_LOG" \
 	-quick-tunnel-results "$RESULTS_LOG"
+"$AUDIT_BIN" \
+	-check-receipt "$QUICK_TUNNEL_RECEIPT" \
+	-check-receipt-kind transwarp-quick-tunnel-diagnostic
 if [ -n "$QUICK_TUNNEL_EVIDENCE" ]; then
 	printf "quick tunnel diagnostic evidence: %s\n" "$QUICK_TUNNEL_EVIDENCE"
 fi

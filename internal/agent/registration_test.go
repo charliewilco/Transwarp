@@ -130,6 +130,22 @@ func TestRegistrarRefreshPostsHeartbeatImmediately(t *testing.T) {
 	}
 }
 
+func TestRegistrarLeaseDurationHasMinimum(t *testing.T) {
+	registrar := NewRegistrar(Config{HeartbeatSeconds: 1})
+
+	if got := registrar.leaseDuration(); got != minimumRegistrationLease {
+		t.Fatalf("unexpected minimum lease duration: got %s want %s", got, minimumRegistrationLease)
+	}
+}
+
+func TestRegistrarLeaseDurationScalesWithHeartbeat(t *testing.T) {
+	registrar := NewRegistrar(Config{HeartbeatSeconds: 45})
+
+	if got, want := registrar.leaseDuration(), 135*time.Second; got != want {
+		t.Fatalf("unexpected lease duration: got %s want %s", got, want)
+	}
+}
+
 func TestAgentRequestsRegistrationRefreshForAvailabilityAndBuildLoad(t *testing.T) {
 	agent := New(Config{
 		MachineID:         "machine-123",

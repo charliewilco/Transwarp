@@ -5,10 +5,11 @@ umask 077
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 RUNNER_PORT="${TRANSWARP_SMOKE_RUNNER_PORT:-18198}"
 RUNNER_READY_ATTEMPTS="${TRANSWARP_SMOKE_RUNNER_READY_ATTEMPTS:-300}"
-PUBLIC_HEALTH_ATTEMPTS="${TRANSWARP_SMOKE_PUBLIC_HEALTH_ATTEMPTS:-150}"
+PUBLIC_HEALTH_ATTEMPTS="${TRANSWARP_SMOKE_PUBLIC_HEALTH_ATTEMPTS:-300}"
 CLOUDFLARED_PATH="${CLOUDFLARED_PATH:-$(command -v cloudflared || true)}"
 QUICK_TUNNEL_EVIDENCE="${TRANSWARP_QUICK_TUNNEL_EVIDENCE:-}"
 TMPDIR="$(mktemp -d "${TMPDIR:-/tmp}/transwarp-cloudflare-smoke.XXXXXX")"
+QUICK_TUNNEL_RECEIPT="${QUICK_TUNNEL_EVIDENCE:-$TMPDIR/quick-tunnel-evidence.json}"
 CONFIG="$TMPDIR/agent.json"
 RUNNER_LOG="$TMPDIR/runner.log"
 PUBLIC_HEALTH_LOG="$TMPDIR/public-health.log"
@@ -113,12 +114,15 @@ STATUS="$(curl -fsS -H "Authorization: Bearer runner-token" "http://127.0.0.1:$R
 printf "%s\n" "$STATUS"
 printf "%s" "$STATUS" | grep -q '"status":"passed"'
 
+"$AUDIT_BIN" \
+	-write-quick-tunnel-evidence "$QUICK_TUNNEL_RECEIPT" \
+	-quick-tunnel-public-url "$PUBLIC_URL" \
+	-quick-tunnel-diagnose-log "$PUBLIC_HEALTH_LOG" \
+	-quick-tunnel-dispatch-log "$DISPATCH_LOG"
+"$AUDIT_BIN" \
+	-check-receipt "$QUICK_TUNNEL_RECEIPT" \
+	-check-receipt-kind transwarp-quick-tunnel-diagnostic
 if [ -n "$QUICK_TUNNEL_EVIDENCE" ]; then
-	"$AUDIT_BIN" \
-		-write-quick-tunnel-evidence "$QUICK_TUNNEL_EVIDENCE" \
-		-quick-tunnel-public-url "$PUBLIC_URL" \
-		-quick-tunnel-diagnose-log "$PUBLIC_HEALTH_LOG" \
-		-quick-tunnel-dispatch-log "$DISPATCH_LOG"
 	printf "quick tunnel diagnostic evidence: %s\n" "$QUICK_TUNNEL_EVIDENCE"
 fi
 printf "logs: %s\n" "$TMPDIR"
