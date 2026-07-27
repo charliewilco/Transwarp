@@ -1,0 +1,62 @@
+name: Transwarp Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Configured Transwarp job ID.
+        required: false
+        default: xcode-version
+      cancel:
+        description: Cancel an existing direct runner build instead of starting a new one.
+        required: false
+        default: 'false'
+      tail:
+        description: Tail an existing direct runner build instead of starting a new one.
+        required: false
+        default: 'false'
+      build-id:
+        description: Build ID to cancel or tail.
+        required: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Transwarp
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.1'
+
+      - name: Dispatch Transwarp build
+        id: transwarp
+        uses: ./
+        with:
+          url: ${{ secrets.TRANSWARP_URL }}
+          token: ${{ secrets.TRANSWARP_TOKEN }}
+          access-client-id: ${{ secrets.TRANSWARP_ACCESS_CLIENT_ID }}
+          access-client-secret: ${{ secrets.TRANSWARP_ACCESS_CLIENT_SECRET }}
+          cancel: ${{ inputs.cancel }}
+          tail: ${{ inputs.tail }}
+          build-id: ${{ inputs.build-id }}
+          job: ${{ inputs.job }}
+          checkout-metadata: 'false'
+
+      - name: Summarize Transwarp dispatch
+        if: always()
+        run: |
+          {
+            echo "### Transwarp dispatch"
+            echo ""
+            echo "- Request ID: ${{ steps.transwarp.outputs['request-id'] }}"
+            echo "- Build ID: ${{ steps.transwarp.outputs['build-id'] }}"
+            echo "- Job ID: ${{ steps.transwarp.outputs['job-id'] }}"
+            echo "- Status: ${{ steps.transwarp.outputs['status'] }}"
+            echo "- Exit Code: ${{ steps.transwarp.outputs['exit-code'] }}"
+            if [ -n "${{ steps.transwarp.outputs['error'] }}" ]; then
+              echo "- Error: ${{ steps.transwarp.outputs['error'] }}"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
