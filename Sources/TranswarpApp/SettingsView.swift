@@ -135,6 +135,13 @@ struct SettingsView: View {
 							}
 							.labelStyle(.iconOnly)
 							.help("Make \(job.id) editable as the primary job")
+							Button(role: .destructive) {
+								removeAdditionalJob(job)
+							} label: {
+								Label("Remove", systemImage: "trash")
+							}
+							.labelStyle(.iconOnly)
+							.help("Remove \(job.id) from saved jobs")
 						}
 					}
 				}
@@ -244,6 +251,15 @@ struct SettingsView: View {
 	private func promoteAdditionalJob(_ job: BuildJob) {
 		do {
 			try draft.promoteAdditionalJob(id: job.id)
+			draftError = nil
+		} catch {
+			draftError = error.localizedDescription
+		}
+	}
+
+	private func removeAdditionalJob(_ job: BuildJob) {
+		do {
+			try draft.removeAdditionalJob(id: job.id)
 			draftError = nil
 		} catch {
 			draftError = error.localizedDescription

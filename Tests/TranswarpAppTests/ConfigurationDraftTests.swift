@@ -437,4 +437,81 @@ struct ConfigurationDraftTests {
 		#expect(draft.jobId == "debug")
 		#expect(draft.additionalJobs.map(\.id) == ["release"])
 	}
+
+	@Test
+	func removeAdditionalJobDropsItFromSavedConfiguration() throws {
+		let configuration = AgentConfiguration(
+			listenAddress: "127.0.0.1:8188",
+			machineId: "machine-123",
+			machineName: "Mac",
+			sharedToken: "token",
+			tunnel: TunnelConfiguration(mode: .off),
+			jobs: [
+				BuildJob(
+					id: "debug",
+					label: "Debug",
+					workingDirectory: "/tmp/debug",
+					command: "/usr/bin/env",
+					timeoutSeconds: 60
+				),
+				BuildJob(
+					id: "release",
+					label: "Release",
+					workingDirectory: "/tmp/release",
+					command: "/usr/bin/xcodebuild",
+					timeoutSeconds: 3600
+				),
+				BuildJob(
+					id: "archive",
+					label: "Archive",
+					workingDirectory: "/tmp/archive",
+					command: "/usr/bin/xcodebuild",
+					timeoutSeconds: 3600
+				)
+			]
+		)
+
+		var draft = ConfigurationDraft(configuration: configuration)
+		try draft.removeAdditionalJob(id: "release")
+
+		#expect(draft.jobId == "debug")
+		#expect(draft.additionalJobs.map(\.id) == ["archive"])
+
+		let saved = try draft.makeConfiguration()
+		#expect(saved.jobs.map(\.id) == ["debug", "archive"])
+	}
+
+	@Test
+	func removeAdditionalJobRejectsUnknownJob() {
+		let configuration = AgentConfiguration(
+			listenAddress: "127.0.0.1:8188",
+			machineId: "machine-123",
+			machineName: "Mac",
+			sharedToken: "token",
+			tunnel: TunnelConfiguration(mode: .off),
+			jobs: [
+				BuildJob(
+					id: "debug",
+					label: "Debug",
+					workingDirectory: "/tmp/debug",
+					command: "/usr/bin/env",
+					timeoutSeconds: 60
+				),
+				BuildJob(
+					id: "release",
+					label: "Release",
+					workingDirectory: "/tmp/release",
+					command: "/usr/bin/xcodebuild",
+					timeoutSeconds: 3600
+				)
+			]
+		)
+
+		var draft = ConfigurationDraft(configuration: configuration)
+
+		#expect(throws: ConfigurationDraftError.self) {
+			try draft.removeAdditionalJob(id: "missing")
+		}
+		#expect(draft.additionalJobs.map(\.id) == ["release"])
+	}
 }

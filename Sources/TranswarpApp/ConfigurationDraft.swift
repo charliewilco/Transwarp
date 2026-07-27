@@ -101,6 +101,13 @@ struct ConfigurationDraft: Equatable {
 		applyPrimaryJob(promotedJob)
 	}
 
+	mutating func removeAdditionalJob(id: String) throws {
+		guard let index = additionalJobs.firstIndex(where: { $0.id == id }) else {
+			throw ConfigurationDraftError("Additional job \(id) is not configured.")
+		}
+		additionalJobs.remove(at: index)
+	}
+
 	static func inferredCoordinatorBaseURL(registrationURL: String) -> String {
 		guard let url = URL(string: registrationURL), url.path == "/transwarp/register" else {
 			return ""
