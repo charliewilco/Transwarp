@@ -61,6 +61,26 @@ func TestValidateReleaseCollectionPreflightRejectsMissingStrictCIDispatchEvidenc
 	}
 }
 
+func TestValidateReleaseCollectionPreflightRejectsMissingStrictCleanMacEvidence(t *testing.T) {
+	dir := t.TempDir()
+	namedEvidence := filepath.Join(dir, "named-tunnel-evidence.json")
+	ciEvidence := filepath.Join(dir, "ci-dispatch-evidence.json")
+	if err := os.WriteFile(namedEvidence, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(ciEvidence, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	options := strictReleasePreflightOptions(t)
+	options.NamedTunnelEvidencePath = namedEvidence
+	options.CIDispatchEvidencePath = ciEvidence
+
+	err := ValidateReleaseCollectionPreflight(options)
+	if err == nil || !strings.Contains(err.Error(), "clean-Mac evidence is required") {
+		t.Fatalf("expected clean-Mac evidence error, got %v", err)
+	}
+}
+
 func TestValidateReleaseCollectionPreflightRejectsInvalidGitHubRunnerForGeneratedCIReceipt(t *testing.T) {
 	options := strictReleasePreflightOptions(t)
 	options.CollectNamedTunnel = "1"

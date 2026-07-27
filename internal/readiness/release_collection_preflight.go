@@ -118,20 +118,23 @@ func ValidateReleaseCollectionPreflight(options ReleaseCollectionPreflightOption
 		if !fileExists(options.CIDispatchEvidencePath) && !releaseGeneratesCIDispatchEvidence(options, collectNamedTunnel) {
 			return errors.New("CI dispatch evidence is required; run inside GitHub Actions with named-tunnel collection, provide TRANSWARP_CI_DISPATCH_EVIDENCE, or set TRANSWARP_COLLECT_ALLOW_INCOMPLETE=1")
 		}
+		if releaseGeneratesCIDispatchEvidence(options, collectNamedTunnel) {
+			if strings.TrimSpace(options.GitHub.RunnerOS) != "" && strings.TrimSpace(options.GitHub.RunnerOS) != "macOS" {
+				return errors.New("CI dispatch evidence must run on RUNNER_OS=macOS, got " + strings.TrimSpace(options.GitHub.RunnerOS))
+			}
+			if strings.TrimSpace(options.GitHub.RunnerArch) != "" && strings.TrimSpace(options.GitHub.RunnerArch) != "ARM64" {
+				return errors.New("CI dispatch evidence must run on RUNNER_ARCH=ARM64, got " + strings.TrimSpace(options.GitHub.RunnerArch))
+			}
+			if err := validateGitHubActionsContext(options.GitHub); err != nil {
+				return err
+			}
+		}
+		if strings.TrimSpace(options.CleanMacEvidencePath) == "" {
+			return errors.New("clean-Mac evidence is required; run scripts/clean-mac-validate.sh on a separate Mac, provide TRANSWARP_CLEAN_MAC_EVIDENCE, or set TRANSWARP_COLLECT_ALLOW_INCOMPLETE=1")
+		}
 	}
 	if strings.TrimSpace(options.CleanMacEvidencePath) != "" && !fileExists(options.CleanMacEvidencePath) {
 		return errors.New("clean-Mac evidence file does not exist: " + strings.TrimSpace(options.CleanMacEvidencePath))
-	}
-	if releaseGeneratesCIDispatchEvidence(options, collectNamedTunnel) {
-		if strings.TrimSpace(options.GitHub.RunnerOS) != "" && strings.TrimSpace(options.GitHub.RunnerOS) != "macOS" {
-			return errors.New("CI dispatch evidence must run on RUNNER_OS=macOS, got " + strings.TrimSpace(options.GitHub.RunnerOS))
-		}
-		if strings.TrimSpace(options.GitHub.RunnerArch) != "" && strings.TrimSpace(options.GitHub.RunnerArch) != "ARM64" {
-			return errors.New("CI dispatch evidence must run on RUNNER_ARCH=ARM64, got " + strings.TrimSpace(options.GitHub.RunnerArch))
-		}
-		if err := validateGitHubActionsContext(options.GitHub); err != nil {
-			return err
-		}
 	}
 	return nil
 }

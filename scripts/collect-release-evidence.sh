@@ -145,6 +145,12 @@ require_strict_external_evidence_env() {
 	if [ ! -f "$CI_DISPATCH_EVIDENCE" ] && ! will_generate_ci_dispatch_evidence; then
 		fail "CI dispatch evidence is required; run inside GitHub Actions with named-tunnel collection, provide TRANSWARP_CI_DISPATCH_EVIDENCE, or set TRANSWARP_COLLECT_ALLOW_INCOMPLETE=1"
 	fi
+	if will_generate_ci_dispatch_evidence; then
+		require_ci_dispatch_env
+	fi
+	if [ -z "$CLEAN_MAC_EVIDENCE" ]; then
+		fail "clean-Mac evidence is required; run scripts/clean-mac-validate.sh on a separate Mac, provide TRANSWARP_CLEAN_MAC_EVIDENCE, or set TRANSWARP_COLLECT_ALLOW_INCOMPLETE=1"
+	fi
 	if [ -n "$CLEAN_MAC_EVIDENCE" ] && [ ! -f "$CLEAN_MAC_EVIDENCE" ]; then
 		fail "clean-Mac evidence file does not exist: $CLEAN_MAC_EVIDENCE"
 	fi

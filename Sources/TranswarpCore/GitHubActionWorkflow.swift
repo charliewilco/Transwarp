@@ -196,8 +196,8 @@ public struct GitHubActionWorkflow: Equatable, Sendable {
 			        description: Existing CI-dispatch receipt path; required with named-tunnel-evidence when collect-named-tunnel=false.
 			        required: false
 			      clean-mac-evidence:
-			        description: Optional path to a clean-Mac evidence JSON receipt already present in the workspace.
-			        required: false
+			        description: Required path to a clean-Mac evidence JSON receipt already present in the workspace.
+			        required: true
 
 			jobs:
 			  named-tunnel-coordinator-smoke:

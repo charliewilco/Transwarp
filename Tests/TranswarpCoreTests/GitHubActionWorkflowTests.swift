@@ -202,7 +202,7 @@ struct GitHubActionWorkflowTests {
 		#expect(yaml.contains("ci-dispatch-evidence:"))
 		#expect(yaml.contains("Existing CI-dispatch receipt path; required with named-tunnel-evidence when collect-named-tunnel=false."))
 		#expect(yaml.contains("clean-mac-evidence:"))
-		#expect(yaml.contains("Optional path to a clean-Mac evidence JSON receipt already present in the workspace."))
+		#expect(yaml.contains("Required path to a clean-Mac evidence JSON receipt already present in the workspace."))
 		#expect(yaml.contains("runs-on: [self-hosted, macOS, ARM64, transwarp-desktop]"))
 		#expect(yaml.contains("go-version: '1.26'"))
 		#expect(yaml.contains("TRANSWARP_COLLECT_NAMED_TUNNEL: ${{ inputs.collect-named-tunnel }}"))

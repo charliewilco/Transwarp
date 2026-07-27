@@ -17,10 +17,12 @@ INVALID_NAMED_RECEIPT_EVIDENCE_DIR="$ROOT/.build/release-evidence-$SMOKE_ID-inva
 INVALID_NAMED_RECEIPT_STDERR="$ROOT/.build/release-evidence-$SMOKE_ID-invalid-named-receipt.stderr"
 INVALID_NAMED_RECEIPT="$INVALID_NAMED_RECEIPT_EVIDENCE_DIR/named-tunnel-evidence.json"
 INVALID_NAMED_RECEIPT_CI="$INVALID_NAMED_RECEIPT_EVIDENCE_DIR/ci-dispatch-evidence.json"
+INVALID_NAMED_RECEIPT_CLEAN="$INVALID_NAMED_RECEIPT_EVIDENCE_DIR/clean-mac-evidence.json"
 INVALID_CI_RECEIPT_EVIDENCE_DIR="$ROOT/.build/release-evidence-$SMOKE_ID-invalid-ci-receipt"
 INVALID_CI_RECEIPT_STDERR="$ROOT/.build/release-evidence-$SMOKE_ID-invalid-ci-receipt.stderr"
 INVALID_CI_RECEIPT_NAMED="$INVALID_CI_RECEIPT_EVIDENCE_DIR/named-tunnel-evidence.json"
 INVALID_CI_RECEIPT="$INVALID_CI_RECEIPT_EVIDENCE_DIR/ci-dispatch-evidence.json"
+INVALID_CI_RECEIPT_CLEAN="$INVALID_CI_RECEIPT_EVIDENCE_DIR/clean-mac-evidence.json"
 INVALID_CLEAN_RECEIPT_EVIDENCE_DIR="$ROOT/.build/release-evidence-$SMOKE_ID-invalid-clean-receipt"
 INVALID_CLEAN_RECEIPT_STDERR="$ROOT/.build/release-evidence-$SMOKE_ID-invalid-clean-receipt.stderr"
 INVALID_CLEAN_RECEIPT_NAMED="$INVALID_CLEAN_RECEIPT_EVIDENCE_DIR/named-tunnel-evidence.json"
@@ -49,6 +51,10 @@ MISSING_CLEAN_EVIDENCE_DIR="$ROOT/.build/release-evidence-$SMOKE_ID-missing-clea
 MISSING_CLEAN_STDERR="$ROOT/.build/release-evidence-$SMOKE_ID-missing-clean.stderr"
 MISSING_CLEAN_NAMED_EVIDENCE="$MISSING_CLEAN_EVIDENCE_DIR/named-tunnel-evidence.json"
 MISSING_CLEAN_CI_EVIDENCE="$MISSING_CLEAN_EVIDENCE_DIR/ci-dispatch-evidence.json"
+MISSING_CLEAN_INPUT_EVIDENCE_DIR="$ROOT/.build/release-evidence-$SMOKE_ID-missing-clean-input"
+MISSING_CLEAN_INPUT_STDERR="$ROOT/.build/release-evidence-$SMOKE_ID-missing-clean-input.stderr"
+MISSING_CLEAN_INPUT_NAMED_EVIDENCE="$MISSING_CLEAN_INPUT_EVIDENCE_DIR/named-tunnel-evidence.json"
+MISSING_CLEAN_INPUT_CI_EVIDENCE="$MISSING_CLEAN_INPUT_EVIDENCE_DIR/ci-dispatch-evidence.json"
 
 cd "$ROOT"
 
@@ -219,6 +225,7 @@ fi
 mkdir -p "$INVALID_NAMED_RECEIPT_EVIDENCE_DIR"
 printf '{"kind":"wrong","schema_version":1,"status":"pass"}\n' > "$INVALID_NAMED_RECEIPT"
 write_receipt "$INVALID_NAMED_RECEIPT_CI" "transwarp-ci-dispatch-evidence"
+write_receipt "$INVALID_NAMED_RECEIPT_CLEAN" "transwarp-clean-mac-evidence"
 if TRANSWARP_EVIDENCE_DIR="$INVALID_NAMED_RECEIPT_EVIDENCE_DIR" \
 	TRANSWARP_COLLECT_NAMED_TUNNEL=0 \
 	TRANSWARP_COLLECT_ALLOW_INCOMPLETE=0 \
@@ -228,6 +235,7 @@ if TRANSWARP_EVIDENCE_DIR="$INVALID_NAMED_RECEIPT_EVIDENCE_DIR" \
 	APPLE_KEYCHAIN_PROFILE=smoke-profile \
 	TRANSWARP_NAMED_TUNNEL_EVIDENCE="$INVALID_NAMED_RECEIPT" \
 	TRANSWARP_CI_DISPATCH_EVIDENCE="$INVALID_NAMED_RECEIPT_CI" \
+	TRANSWARP_CLEAN_MAC_EVIDENCE="$INVALID_NAMED_RECEIPT_CLEAN" \
 	./scripts/collect-release-evidence.sh 2> "$INVALID_NAMED_RECEIPT_STDERR"; then
 	echo "expected invalid named-tunnel receipt to fail" >&2
 	exit 1
@@ -240,6 +248,7 @@ fi
 
 write_named_tunnel_fixture "$INVALID_CI_RECEIPT_NAMED" "invalid-ci"
 printf '{"kind":"transwarp-ci-dispatch-evidence","schema_version":1,"status":"fail"}\n' > "$INVALID_CI_RECEIPT"
+write_receipt "$INVALID_CI_RECEIPT_CLEAN" "transwarp-clean-mac-evidence"
 if TRANSWARP_EVIDENCE_DIR="$INVALID_CI_RECEIPT_EVIDENCE_DIR" \
 	TRANSWARP_COLLECT_NAMED_TUNNEL=0 \
 	TRANSWARP_COLLECT_ALLOW_INCOMPLETE=0 \
@@ -249,6 +258,7 @@ if TRANSWARP_EVIDENCE_DIR="$INVALID_CI_RECEIPT_EVIDENCE_DIR" \
 	APPLE_KEYCHAIN_PROFILE=smoke-profile \
 	TRANSWARP_NAMED_TUNNEL_EVIDENCE="$INVALID_CI_RECEIPT_NAMED" \
 	TRANSWARP_CI_DISPATCH_EVIDENCE="$INVALID_CI_RECEIPT" \
+	TRANSWARP_CLEAN_MAC_EVIDENCE="$INVALID_CI_RECEIPT_CLEAN" \
 	./scripts/collect-release-evidence.sh 2> "$INVALID_CI_RECEIPT_STDERR"; then
 	echo "expected invalid CI dispatch receipt to fail" >&2
 	exit 1
@@ -400,6 +410,28 @@ fi
 
 if ! grep -q "clean-Mac evidence file does not exist" "$MISSING_CLEAN_STDERR"; then
 	echo "missing clean-Mac failure did not explain evidence path problem" >&2
+	exit 1
+fi
+
+mkdir -p "$MISSING_CLEAN_INPUT_EVIDENCE_DIR"
+write_named_tunnel_fixture "$MISSING_CLEAN_INPUT_NAMED_EVIDENCE" "missing-clean-input"
+write_ci_dispatch_fixture "$MISSING_CLEAN_INPUT_CI_EVIDENCE" "missing-clean-input"
+if TRANSWARP_EVIDENCE_DIR="$MISSING_CLEAN_INPUT_EVIDENCE_DIR" \
+	TRANSWARP_COLLECT_NAMED_TUNNEL=0 \
+	TRANSWARP_COLLECT_ALLOW_INCOMPLETE=0 \
+	TRANSWARP_EXPECTED_CLOUDFLARED_VERSION="cloudflared version smoke" \
+	SIGN_IDENTITY="Developer ID Application: Smoke (TEAMID)" \
+	TRANSWARP_NOTARIZE_REQUESTED=1 \
+	APPLE_KEYCHAIN_PROFILE=smoke-profile \
+	TRANSWARP_NAMED_TUNNEL_EVIDENCE="$MISSING_CLEAN_INPUT_NAMED_EVIDENCE" \
+	TRANSWARP_CI_DISPATCH_EVIDENCE="$MISSING_CLEAN_INPUT_CI_EVIDENCE" \
+	./scripts/collect-release-evidence.sh 2> "$MISSING_CLEAN_INPUT_STDERR"; then
+	echo "expected missing clean-Mac evidence input to fail" >&2
+	exit 1
+fi
+
+if ! grep -q "clean-Mac evidence is required" "$MISSING_CLEAN_INPUT_STDERR"; then
+	echo "missing clean-Mac input failure did not explain strict evidence requirement" >&2
 	exit 1
 fi
 
