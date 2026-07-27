@@ -108,6 +108,14 @@ struct ConfigurationDraft: Equatable {
 		additionalJobs.remove(at: index)
 	}
 
+	mutating func duplicatePrimaryJob() throws {
+		let currentPrimaryJob = try primaryJob()
+		var duplicate = currentPrimaryJob
+		duplicate.id = uniqueJobId(base: currentPrimaryJob.id + "-copy")
+		duplicate.label = currentPrimaryJob.label.isEmpty ? "\(currentPrimaryJob.id) Copy" : "\(currentPrimaryJob.label) Copy"
+		additionalJobs.append(duplicate)
+	}
+
 	static func inferredCoordinatorBaseURL(registrationURL: String) -> String {
 		guard let url = URL(string: registrationURL), url.path == "/transwarp/register" else {
 			return ""
@@ -260,6 +268,22 @@ struct ConfigurationDraft: Equatable {
 			}
 		}
 		return uniqueValues
+	}
+
+	private func uniqueJobId(base: String) -> String {
+		let existingIds = Set(([jobId] + additionalJobs.map(\.id)).map { trimmed($0) })
+		let trimmedBase = trimmed(base).isEmpty ? "job-copy" : trimmed(base)
+		if !existingIds.contains(trimmedBase) {
+			return trimmedBase
+		}
+		var suffix = 2
+		while true {
+			let candidate = "\(trimmedBase)-\(suffix)"
+			if !existingIds.contains(candidate) {
+				return candidate
+			}
+			suffix += 1
+		}
 	}
 
 	private func trimmed(_ value: String) -> String {

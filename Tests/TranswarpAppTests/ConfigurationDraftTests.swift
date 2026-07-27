@@ -514,4 +514,73 @@ struct ConfigurationDraftTests {
 		}
 		#expect(draft.additionalJobs.map(\.id) == ["release"])
 	}
+
+	@Test
+	func duplicatePrimaryJobAddsUniqueAdditionalJob() throws {
+		let configuration = AgentConfiguration(
+			listenAddress: "127.0.0.1:8188",
+			machineId: "machine-123",
+			machineName: "Mac",
+			sharedToken: "token",
+			tunnel: TunnelConfiguration(mode: .off),
+			jobs: [
+				BuildJob(
+					id: "debug",
+					label: "Debug",
+					workingDirectory: "/tmp/debug",
+					command: "/usr/bin/env",
+					arguments: ["printenv"],
+					environment: ["MATCH_PASSWORD": "secret"],
+					timeoutSeconds: 60
+				),
+				BuildJob(
+					id: "debug-copy",
+					label: "Debug Copy",
+					workingDirectory: "/tmp/debug-copy",
+					command: "/usr/bin/env",
+					timeoutSeconds: 60
+				)
+			]
+		)
+
+		var draft = ConfigurationDraft(configuration: configuration)
+		try draft.duplicatePrimaryJob()
+
+		#expect(draft.jobId == "debug")
+		#expect(draft.additionalJobs.map(\.id) == ["debug-copy", "debug-copy-2"])
+		#expect(draft.additionalJobs[1].label == "Debug Copy")
+		#expect(draft.additionalJobs[1].arguments == ["printenv"])
+		#expect(draft.additionalJobs[1].environment["MATCH_PASSWORD"] == "secret")
+
+		let saved = try draft.makeConfiguration()
+		#expect(saved.jobs.map(\.id) == ["debug", "debug-copy", "debug-copy-2"])
+	}
+
+	@Test
+	func duplicatePrimaryJobRejectsInvalidPrimaryWithoutAppending() {
+		let configuration = AgentConfiguration(
+			listenAddress: "127.0.0.1:8188",
+			machineId: "machine-123",
+			machineName: "Mac",
+			sharedToken: "token",
+			tunnel: TunnelConfiguration(mode: .off),
+			jobs: [
+				BuildJob(
+					id: "debug",
+					label: "Debug",
+					workingDirectory: "/tmp/debug",
+					command: "/usr/bin/env",
+					timeoutSeconds: 60
+				)
+			]
+		)
+
+		var draft = ConfigurationDraft(configuration: configuration)
+		draft.jobEnvironment = "BROKEN"
+
+		#expect(throws: ConfigurationDraftError.self) {
+			try draft.duplicatePrimaryJob()
+		}
+		#expect(draft.additionalJobs.isEmpty)
+	}
 }

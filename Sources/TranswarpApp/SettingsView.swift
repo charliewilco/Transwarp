@@ -145,6 +145,12 @@ struct SettingsView: View {
 						}
 					}
 				}
+				Button {
+					duplicatePrimaryJob()
+				} label: {
+					Label("Duplicate Primary", systemImage: "plus.square.on.square")
+				}
+				.help("Add a copy of the primary job to additional jobs")
 				TextField("Job ID", text: $draft.jobId)
 				TextField("Label", text: $draft.jobLabel)
 				TextField("Working Directory", text: $draft.jobWorkingDirectory)
@@ -260,6 +266,15 @@ struct SettingsView: View {
 	private func removeAdditionalJob(_ job: BuildJob) {
 		do {
 			try draft.removeAdditionalJob(id: job.id)
+			draftError = nil
+		} catch {
+			draftError = error.localizedDescription
+		}
+	}
+
+	private func duplicatePrimaryJob() {
+		do {
+			try draft.duplicatePrimaryJob()
 			draftError = nil
 		} catch {
 			draftError = error.localizedDescription
