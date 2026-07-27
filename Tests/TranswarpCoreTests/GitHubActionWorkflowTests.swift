@@ -211,7 +211,9 @@ struct GitHubActionWorkflowTests {
 		#expect(yaml.contains("coordinator-token: ${{ secrets.TRANSWARP_COORDINATOR_TOKEN }}"))
 		#expect(!yaml.contains("token: ${{ secrets.TRANSWARP_TOKEN }}"))
 		#expect(yaml.contains("cancel: ${{ inputs.cancel }}"))
+		#expect(yaml.contains("result: ${{ inputs.result }}"))
 		#expect(yaml.contains("request-id: ${{ inputs.request-id }}"))
+		#expect(yaml.contains("Existing Transwarp request ID to cancel or query."))
 		#expect(yaml.contains("job: 'release'"))
 		#expect(yaml.contains("# min-cpu-count: 12"))
 		#expect(yaml.contains("# min-memory-bytes: 34359738368"))
@@ -225,6 +227,8 @@ struct GitHubActionWorkflowTests {
 		#expect(yaml.contains("steps.transwarp.outputs['job-id']"))
 		#expect(yaml.contains("steps.transwarp.outputs['machine-id']"))
 		#expect(yaml.contains("steps.transwarp.outputs['public-url']"))
+		#expect(yaml.contains("steps.transwarp.outputs['status']"))
+		#expect(yaml.contains("steps.transwarp.outputs['exit-code']"))
 		#expect(yaml.contains("$GITHUB_STEP_SUMMARY"))
 		assertWorkflowInputIndentation(yaml, keys: [
 			"mode:",
@@ -233,6 +237,7 @@ struct GitHubActionWorkflowTests {
 			"access-client-id:",
 			"access-client-secret:",
 			"cancel:",
+			"result:",
 			"request-id:",
 			"job:",
 			"# min-cpu-count:",

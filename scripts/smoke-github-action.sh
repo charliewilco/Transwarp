@@ -59,7 +59,13 @@ case "$*" in
 			if [ -n "${TRANSWARP_JOB:-}" ]; then
 				write_output job-id "$TRANSWARP_JOB"
 			fi
-			if [ -n "${TRANSWARP_BUILD_ID:-}" ]; then
+			if echo "$*" | grep -q -- ' -result'; then
+				write_output build-id "coordinator-result-build-from-fake-go"
+				write_output machine-id "${TRANSWARP_MACHINE_ID:-coordinator-machine-from-fake-go}"
+				write_output public-url "https://runner.example.com"
+				write_output status "passed"
+				write_output exit-code "0"
+			elif [ -n "${TRANSWARP_BUILD_ID:-}" ]; then
 				write_output build-id "$TRANSWARP_BUILD_ID"
 			elif [ -n "${TRANSWARP_COORDINATOR_URL:-}" ]; then
 				write_output build-id "coordinator-build-from-fake-go"
@@ -91,6 +97,7 @@ run_action() {
 		INPUT_DIAGNOSE="${INPUT_DIAGNOSE:-true}" \
 		INPUT_ALLOW_HTTP="${INPUT_ALLOW_HTTP:-false}" \
 		INPUT_CANCEL="${INPUT_CANCEL:-false}" \
+		INPUT_RESULT="${INPUT_RESULT:-false}" \
 		INPUT_TAIL="${INPUT_TAIL:-false}" \
 		INPUT_URL="${INPUT_URL:-}" \
 		INPUT_TOKEN="${INPUT_TOKEN:-}" \
@@ -282,6 +289,25 @@ grep -q 'cmd=run github.com/charliewilco/transwarp/cmd/transwarp-dispatch@local 
 grep -q '^TRANSWARP_REQUEST_ID=run-to-cancel$' "$GO_LOG"
 
 (
+	INPUT_MODE=coordinator
+	INPUT_COORDINATOR_URL=https://coordinator.example.com
+	INPUT_COORDINATOR_TOKEN=coordinator-token
+	INPUT_RESULT=true
+	INPUT_REQUEST_ID=run-to-query
+	expect_success coordinator_result run_action
+)
+grep -q 'cmd=run github.com/charliewilco/transwarp/cmd/transwarp-dispatch@local -timeout 30m -result' "$GO_LOG"
+grep -q '^TRANSWARP_REQUEST_ID=run-to-query$' "$GO_LOG"
+if grep -q 'cmd=run github.com/charliewilco/transwarp/cmd/transwarp-diagnose@local' "$GO_LOG"; then
+	echo "result run should not diagnose before querying a recorded result" >&2
+	exit 1
+fi
+expect_output request-id run-to-query
+expect_output build-id coordinator-result-build-from-fake-go
+expect_output status passed
+expect_output exit-code 0
+
+(
 	INPUT_URL=https://runner.example.com
 	INPUT_TOKEN=runner-token
 	INPUT_JOB=xcode-debug
@@ -330,6 +356,35 @@ grep -q '^TRANSWARP_REQUEST_ID=run-to-cancel$' "$GO_LOG"
 	INPUT_TAIL=true
 	INPUT_BUILD_ID=build-456
 	expect_failure cancel_and_tail 'cancel and tail cannot both be true' run_action
+)
+
+(
+	INPUT_URL=https://runner.example.com
+	INPUT_TOKEN=runner-token
+	INPUT_RESULT=true
+	INPUT_REQUEST_ID=run-to-query
+	expect_failure direct_result 'result is only supported in coordinator mode' run_action
+)
+
+(
+	INPUT_MODE=coordinator
+	INPUT_COORDINATOR_URL=https://coordinator.example.com
+	INPUT_COORDINATOR_TOKEN=coordinator-token
+	INPUT_CANCEL=true
+	INPUT_RESULT=true
+	INPUT_REQUEST_ID=run-to-query
+	expect_failure cancel_and_result 'cancel and result cannot both be true' run_action
+)
+
+(
+	INPUT_MODE=coordinator
+	INPUT_COORDINATOR_URL=https://coordinator.example.com
+	INPUT_COORDINATOR_TOKEN=coordinator-token
+	INPUT_TAIL=true
+	INPUT_RESULT=true
+	INPUT_REQUEST_ID=run-to-query
+	INPUT_BUILD_ID=build-456
+	expect_failure tail_and_result 'tail and result cannot both be true' run_action
 )
 
 (

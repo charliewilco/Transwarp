@@ -22,6 +22,10 @@ inputs:
     description: Cancel an active Transwarp dispatch instead of starting one.
     required: false
     default: "false"
+  result:
+    description: Fetch a recorded coordinator result for request-id instead of starting a new dispatch.
+    required: false
+    default: "false"
   tail:
     description: Tail an existing direct runner build instead of starting one.
     required: false
@@ -105,6 +109,12 @@ outputs:
   public-url:
     description: Selected runner public URL for coordinator dispatches.
     value: ${{ steps.dispatch.outputs.public-url }}
+  status:
+    description: Recorded coordinator result status when result lookup is used.
+    value: ${{ steps.dispatch.outputs.status }}
+  exit-code:
+    description: Recorded coordinator result exit code when result lookup is used.
+    value: ${{ steps.dispatch.outputs.exit-code }}
 
 runs:
   using: composite
@@ -118,6 +128,7 @@ runs:
         INPUT_DIAGNOSE: "${{ inputs.diagnose }}"
         INPUT_ALLOW_HTTP: "${{ inputs.allow-http }}"
         INPUT_CANCEL: "${{ inputs.cancel }}"
+        INPUT_RESULT: "${{ inputs.result }}"
         INPUT_TAIL: "${{ inputs.tail }}"
         INPUT_URL: "${{ inputs.url }}"
         INPUT_TOKEN: "${{ inputs.token }}"
@@ -206,6 +217,7 @@ runs:
         INPUT_DIAGNOSE="$(normalize_boolean diagnose "$INPUT_DIAGNOSE")"
         INPUT_ALLOW_HTTP="$(normalize_boolean allow-http "$INPUT_ALLOW_HTTP")"
         INPUT_CANCEL="$(normalize_boolean cancel "$INPUT_CANCEL")"
+        INPUT_RESULT="$(normalize_boolean result "$INPUT_RESULT")"
         INPUT_TAIL="$(normalize_boolean tail "$INPUT_TAIL")"
         INPUT_CHECKOUT_METADATA="$(normalize_boolean checkout-metadata "$INPUT_CHECKOUT_METADATA")"
         require_unsigned_integer min-cpu-count "$INPUT_MIN_CPU_COUNT"
@@ -220,12 +232,24 @@ runs:
           echo "cancel and tail cannot both be true" >&2
           exit 1
         fi
-        if [ "$INPUT_CANCEL" != "true" ] && [ "$INPUT_TAIL" != "true" ] && [ -z "$INPUT_JOB" ]; then
+        if [ "$INPUT_CANCEL" = "true" ] && [ "$INPUT_RESULT" = "true" ]; then
+          echo "cancel and result cannot both be true" >&2
+          exit 1
+        fi
+        if [ "$INPUT_TAIL" = "true" ] && [ "$INPUT_RESULT" = "true" ]; then
+          echo "tail and result cannot both be true" >&2
+          exit 1
+        fi
+        if [ "$INPUT_CANCEL" != "true" ] && [ "$INPUT_TAIL" != "true" ] && [ "$INPUT_RESULT" != "true" ] && [ -z "$INPUT_JOB" ]; then
           echo "job is required" >&2
           exit 1
         fi
         if [ "$INPUT_TAIL" = "true" ] && [ "$INPUT_MODE" != "direct" ]; then
           echo "tail is only supported in direct mode" >&2
+          exit 1
+        fi
+        if [ "$INPUT_RESULT" = "true" ] && [ "$INPUT_MODE" != "coordinator" ]; then
+          echo "result is only supported in coordinator mode" >&2
           exit 1
         fi
         if [ "$INPUT_TAIL" = "true" ] && [ -z "$INPUT_BUILD_ID" ]; then
@@ -313,7 +337,7 @@ runs:
           fi
         fi
 
-        if [ "$INPUT_CANCEL" != "true" ] && [ "$INPUT_TAIL" != "true" ] && [ "$INPUT_DIAGNOSE" = "true" ]; then
+        if [ "$INPUT_CANCEL" != "true" ] && [ "$INPUT_TAIL" != "true" ] && [ "$INPUT_RESULT" != "true" ] && [ "$INPUT_DIAGNOSE" = "true" ]; then
           if [ "$INPUT_ALLOW_HTTP" = "true" ]; then
             go run "github.com/charliewilco/transwarp/cmd/transwarp-diagnose@$INPUT_VERSION" -allow-http
           else
@@ -323,6 +347,8 @@ runs:
 
         if [ "$INPUT_CANCEL" = "true" ]; then
           go run "github.com/charliewilco/transwarp/cmd/transwarp-dispatch@$INPUT_VERSION" -timeout "$INPUT_TIMEOUT" -cancel
+        elif [ "$INPUT_RESULT" = "true" ]; then
+          go run "github.com/charliewilco/transwarp/cmd/transwarp-dispatch@$INPUT_VERSION" -timeout "$INPUT_TIMEOUT" -result
         else
           go run "github.com/charliewilco/transwarp/cmd/transwarp-dispatch@$INPUT_VERSION" -timeout "$INPUT_TIMEOUT"
         fi

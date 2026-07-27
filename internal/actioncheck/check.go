@@ -39,7 +39,7 @@ func Check(root string) error {
 	if !ok {
 		return errors.New("action.yml must define inputs")
 	}
-	for _, input := range []string{"job", "mode", "version", "diagnose", "allow-http", "cancel", "tail", "url", "token", "coordinator-url", "coordinator-token", "access-client-id", "access-client-secret", "request-id", "build-id", "repo-url", "ref", "commit", "checkout-metadata", "machine-id", "report-url", "report-token", "min-cpu-count", "min-memory-bytes", "min-xcode-version", "timeout"} {
+	for _, input := range []string{"job", "mode", "version", "diagnose", "allow-http", "cancel", "result", "tail", "url", "token", "coordinator-url", "coordinator-token", "access-client-id", "access-client-secret", "request-id", "build-id", "repo-url", "ref", "commit", "checkout-metadata", "machine-id", "report-url", "report-token", "min-cpu-count", "min-memory-bytes", "min-xcode-version", "timeout"} {
 		if _, ok := inputs[input]; !ok {
 			return fmt.Errorf("action.yml missing input %s", input)
 		}
@@ -52,7 +52,7 @@ func Check(root string) error {
 	if !ok {
 		return errors.New("action.yml must expose dispatch outputs")
 	}
-	for _, output := range []string{"request-id", "build-id", "job-id", "machine-id", "public-url"} {
+	for _, output := range []string{"request-id", "build-id", "job-id", "machine-id", "public-url", "status", "exit-code"} {
 		if _, ok := outputs[output]; !ok {
 			return fmt.Errorf("action.yml missing output %s", output)
 		}
@@ -69,7 +69,7 @@ func Check(root string) error {
 	for _, assertion := range []scriptAssertion{
 		{"action.yml must run transwarp-diagnose", []string{"cmd/transwarp-diagnose"}},
 		{"action.yml must run transwarp-dispatch", []string{"cmd/transwarp-dispatch"}},
-		{"action.yml must validate boolean inputs", []string{"normalize_boolean diagnose", "normalize_boolean allow-http", "normalize_boolean cancel", "normalize_boolean tail", "normalize_boolean checkout-metadata", "must be true, 1, yes, false, 0, or no"}},
+		{"action.yml must validate boolean inputs", []string{"normalize_boolean diagnose", "normalize_boolean allow-http", "normalize_boolean cancel", "normalize_boolean result", "normalize_boolean tail", "normalize_boolean checkout-metadata", "must be true, 1, yes, false, 0, or no"}},
 		{"action.yml must support local-only jobs without checkout metadata", []string{"INPUT_CHECKOUT_METADATA", "TRANSWARP_REPO_URL=\"\"", "TRANSWARP_REF=\"\"", "TRANSWARP_COMMIT=\"\""}},
 		{"action.yml must validate numeric constraint inputs", []string{"require_unsigned_integer min-cpu-count", "require_unsigned_integer min-memory-bytes"}},
 		{"action.yml must validate stable identifier inputs", []string{"require_stable_identifier request-id", "require_stable_identifier job", "require_stable_identifier build-id", "require_stable_identifier machine-id"}},
@@ -77,6 +77,7 @@ func Check(root string) error {
 		{"action.yml must reject report callbacks outside direct mode", []string{"report-url and report-token are only supported in direct mode"}},
 		{"action.yml must validate cancel inputs", []string{"build-id is required when canceling a direct runner build", "request-id is required when canceling a coordinator dispatch"}},
 		{"action.yml must validate tail inputs", []string{"tail is only supported in direct mode", "build-id is required when tailing a direct runner build"}},
+		{"action.yml must validate result inputs", []string{"result is only supported in coordinator mode", "cancel and result cannot both be true", "tail and result cannot both be true", "-result"}},
 	} {
 		if !assertion.matches(actionScript) {
 			return errors.New(assertion.message)
@@ -178,8 +179,11 @@ func checkCoordinatorExample(root string) error {
 	if _, ok := with["token"]; ok {
 		return errors.New("coordinator example must not pass the runner token to GitHub Actions")
 	}
+	if _, ok := with["result"]; !ok {
+		return errors.New("coordinator example must expose result lookup")
+	}
 	script := joinedRunScripts(steps)
-	for _, marker := range []string{"### Transwarp dispatch", "$GITHUB_STEP_SUMMARY", "steps.transwarp.outputs[", "job-id", "machine-id", "public-url"} {
+	for _, marker := range []string{"### Transwarp dispatch", "$GITHUB_STEP_SUMMARY", "steps.transwarp.outputs[", "job-id", "machine-id", "public-url", "status", "exit-code"} {
 		if !strings.Contains(script, marker) {
 			return errors.New("coordinator example must summarize selected runner")
 		}

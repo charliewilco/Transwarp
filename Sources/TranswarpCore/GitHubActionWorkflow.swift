@@ -144,8 +144,12 @@ public struct GitHubActionWorkflow: Equatable, Sendable {
 			        description: Cancel an existing coordinator dispatch instead of starting a new one.
 			        required: false
 			        default: 'false'
+			      result:
+			        description: Fetch a recorded coordinator result instead of starting a new dispatch.
+			        required: false
+			        default: 'false'
 			      request-id:
-			        description: Existing Transwarp request ID to cancel.
+			        description: Existing Transwarp request ID to cancel or query.
 			        required: false
 
 			jobs:
@@ -165,6 +169,7 @@ public struct GitHubActionWorkflow: Equatable, Sendable {
 			          access-client-id: ${{ secrets.TRANSWARP_ACCESS_CLIENT_ID }}
 			          access-client-secret: ${{ secrets.TRANSWARP_ACCESS_CLIENT_SECRET }}
 			          cancel: ${{ inputs.cancel }}
+			          result: ${{ inputs.result }}
 			          request-id: ${{ inputs.request-id }}
 			          job: \(Self.yamlSingleQuoted(jobID))
 			\(checkoutMetadataInput)
@@ -183,6 +188,10 @@ public struct GitHubActionWorkflow: Equatable, Sendable {
 			            echo "- Job ID: ${{ steps.transwarp.outputs['job-id'] }}"
 			            echo "- Machine ID: ${{ steps.transwarp.outputs['machine-id'] }}"
 			            echo "- Public URL: ${{ steps.transwarp.outputs['public-url'] }}"
+			            if [ -n "${{ steps.transwarp.outputs['status'] }}" ]; then
+			              echo "- Status: ${{ steps.transwarp.outputs['status'] }}"
+			              echo "- Exit Code: ${{ steps.transwarp.outputs['exit-code'] }}"
+			            fi
 			          } >> "$GITHUB_STEP_SUMMARY"
 			"""
 		case .releaseEvidence:
