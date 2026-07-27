@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -71,6 +72,12 @@ type RunResult struct {
 	Status    string
 	ExitCode  int
 	Error     string
+}
+
+type tailResult struct {
+	Status   string
+	ExitCode int
+	Error    string
 }
 
 type coordinatorStreamResult struct {
@@ -143,7 +150,7 @@ func RunWithResult(ctx context.Context, client *http.Client, request Request, ou
 		return result, Cancel(ctx, client, request)
 	}
 	if request.BuildID != "" && request.JobID == "" {
-		return result, Tail(ctx, client, request, output)
+		return tailWithResult(ctx, client, request, output)
 	}
 	started, err := Start(ctx, client, request)
 	if err != nil {
@@ -152,7 +159,13 @@ func RunWithResult(ctx context.Context, client *http.Client, request Request, ou
 
 	request.BuildID = started.BuildID
 	result.BuildID = started.BuildID
-	return result, Tail(ctx, client, request, output)
+	tailResult, err := tailWithResult(ctx, client, request, output)
+	if tailResult.Status != "" {
+		result.Status = tailResult.Status
+		result.ExitCode = tailResult.ExitCode
+		result.Error = tailResult.Error
+	}
+	return result, err
 }
 
 func Start(ctx context.Context, client *http.Client, request Request) (BuildStartResponse, error) {
@@ -310,8 +323,14 @@ func streamContextEnded(err error) bool {
 }
 
 func Tail(ctx context.Context, client *http.Client, request Request, output io.Writer) error {
+	_, err := tailWithResult(ctx, client, request, output)
+	return err
+}
+
+func tailWithResult(ctx context.Context, client *http.Client, request Request, output io.Writer) (RunResult, error) {
+	result := RunResult{RequestID: request.RequestID, BuildID: request.BuildID, JobID: request.JobID}
 	if err := request.ValidateBuildID(); err != nil {
-		return err
+		return result, err
 	}
 	if client == nil {
 		client = tunnelnet.NoRedirectHTTPClient()
@@ -326,31 +345,36 @@ func Tail(ctx context.Context, client *http.Client, request Request, output io.W
 		if err != nil {
 			if ctx.Err() != nil {
 				_ = Cancel(context.Background(), client, request)
-				return ctx.Err()
+				return result, ctx.Err()
 			}
-			return err
+			return result, err
 		}
 
-		status, lastSequence, err := readEvents(response.Body, output)
+		eventsResult, lastSequence, err := readEvents(response.Body, output)
 		response.Body.Close()
+		if eventsResult.Status != "" {
+			result.Status = eventsResult.Status
+			result.ExitCode = eventsResult.ExitCode
+			result.Error = eventsResult.Error
+		}
 		if lastSequence > after {
 			after = lastSequence
 		}
 		if response.StatusCode < 200 || response.StatusCode >= 300 {
-			return fmt.Errorf("tail failed with %s", response.Status)
+			return result, fmt.Errorf("tail failed with %s", response.Status)
 		}
 		if err == nil {
-			return nil
+			return result, nil
 		}
 		if ctx.Err() != nil {
 			_ = Cancel(context.Background(), client, request)
-			return ctx.Err()
+			return result, ctx.Err()
 		}
 		if !errors.Is(err, errMissingTerminalStatus) {
-			return err
+			return result, err
 		}
-		if status != "" {
-			return statusError(status)
+		if result.Status != "" {
+			return result, statusError(result.Error)
 		}
 	}
 }
@@ -807,11 +831,11 @@ func sleepDispatchRetry(ctx context.Context, delay time.Duration) error {
 
 var errMissingTerminalStatus = errors.New("build stream ended without terminal status")
 
-func readEvents(reader io.Reader, output io.Writer) (string, int, error) {
+func readEvents(reader io.Reader, output io.Writer) (tailResult, int, error) {
 	scanner := bufio.NewScanner(reader)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 
-	terminalStatus := ""
+	result := tailResult{}
 	reportFailure := ""
 	lastSequence := 0
 	for scanner.Scan() {
@@ -829,11 +853,15 @@ func readEvents(reader io.Reader, output io.Writer) (string, int, error) {
 		if event.Kind == "build" {
 			switch {
 			case event.Message == "passed":
-				terminalStatus = "passed"
+				result = tailResult{Status: "passed", ExitCode: 0}
 			case event.Message == "canceled":
-				terminalStatus = "canceled"
+				result = tailResult{Status: "canceled", ExitCode: -1, Error: "build canceled"}
 			case strings.HasPrefix(event.Message, "failed"):
-				terminalStatus = event.Message
+				result = tailResult{
+					Status:   "failed",
+					ExitCode: exitCodeFromBuildMessage(event.Message),
+					Error:    event.Message,
+				}
 			}
 		}
 		if event.Kind == "error" {
@@ -843,23 +871,36 @@ func readEvents(reader io.Reader, output io.Writer) (string, int, error) {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return terminalStatus, lastSequence, err
+		return result, lastSequence, err
 	}
 
 	if reportFailure != "" {
-		return terminalStatus, lastSequence, fmt.Errorf("report failed: %s", reportFailure)
+		result.Error = "report failed: " + reportFailure
+		return result, lastSequence, errors.New(result.Error)
 	}
-	if terminalStatus == "" {
-		return "", lastSequence, errMissingTerminalStatus
+	if result.Status == "" {
+		return result, lastSequence, errMissingTerminalStatus
 	}
-	if terminalStatus != "passed" {
-		return terminalStatus, lastSequence, statusError(terminalStatus)
+	if result.Status != "passed" {
+		return result, lastSequence, statusError(result.Error)
 	}
-	return terminalStatus, lastSequence, nil
+	return result, lastSequence, nil
 }
 
 func statusError(status string) error {
 	return errors.New(status)
+}
+
+func exitCodeFromBuildMessage(message string) int {
+	value, ok := strings.CutPrefix(message, "failed with exit code ")
+	if !ok {
+		return -1
+	}
+	exitCode, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
+		return -1
+	}
+	return exitCode
 }
 
 func writeEvent(output io.Writer, event Event) {

@@ -110,13 +110,13 @@ outputs:
     description: Selected runner public URL for coordinator dispatches.
     value: ${{ steps.dispatch.outputs.public-url }}
   status:
-    description: Recorded coordinator result status when result lookup is used.
+    description: Terminal build status when the selected dispatch mode reports one.
     value: ${{ steps.dispatch.outputs.status }}
   exit-code:
-    description: Recorded coordinator result exit code when result lookup is used.
+    description: Terminal build exit code when the selected dispatch mode reports one.
     value: ${{ steps.dispatch.outputs.exit-code }}
   error:
-    description: Recorded coordinator result error when result lookup is used and the build failed or was canceled.
+    description: Terminal build or result-reporting error when the selected dispatch mode reports one.
     value: ${{ steps.dispatch.outputs.error }}
 
 runs:

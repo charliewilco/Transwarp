@@ -1076,6 +1076,50 @@ func TestRunWithResultReturnsAcceptedBuildIDOnRemoteFailure(t *testing.T) {
 	if result.JobID != "xcode" {
 		t.Fatalf("unexpected job ID: %s", result.JobID)
 	}
+	if result.Status != "failed" {
+		t.Fatalf("unexpected status: %s", result.Status)
+	}
+	if result.ExitCode != 65 {
+		t.Fatalf("unexpected exit code: %d", result.ExitCode)
+	}
+	if result.Error != "failed with exit code 65" {
+		t.Fatalf("unexpected error: %s", result.Error)
+	}
+}
+
+func TestRunWithResultReturnsTerminalStatusOnPass(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/v1/builds":
+			response.WriteHeader(http.StatusAccepted)
+			response.Write([]byte(`{"build_id":"build-123","status":"running"}`))
+		case "/v1/builds/build-123/logs":
+			response.Write([]byte(`{"kind":"build","message":"passed","sequence":1}` + "\n"))
+		default:
+			t.Fatalf("unexpected path: %s", request.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	result, err := RunWithResult(context.Background(), server.Client(), Request{
+		BaseURL:   server.URL,
+		Token:     "token",
+		JobID:     "xcode",
+		RequestID: "run-123",
+	}, &bytes.Buffer{})
+
+	if err != nil {
+		t.Fatalf("RunWithResult returned error: %v", err)
+	}
+	if result.Status != "passed" {
+		t.Fatalf("unexpected status: %s", result.Status)
+	}
+	if result.ExitCode != 0 {
+		t.Fatalf("unexpected exit code: %d", result.ExitCode)
+	}
+	if result.Error != "" {
+		t.Fatalf("unexpected error: %s", result.Error)
+	}
 }
 
 func TestRunFailsWhenResultReportFailsAfterBuildPasses(t *testing.T) {
@@ -1111,6 +1155,42 @@ func TestRunFailsWhenResultReportFailsAfterBuildPasses(t *testing.T) {
 	}
 	if !strings.Contains(output.String(), "[error] report failed") {
 		t.Fatalf("output missing report failure: %s", output.String())
+	}
+}
+
+func TestRunWithResultReturnsTerminalStatusWhenResultReportFails(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/v1/builds":
+			response.WriteHeader(http.StatusAccepted)
+			response.Write([]byte(`{"build_id":"build-123","status":"running"}`))
+		case "/v1/builds/build-123/logs":
+			response.Write([]byte(`{"kind":"build","message":"passed","sequence":1}` + "\n"))
+			response.Write([]byte(`{"kind":"error","message":"report failed: report endpoint returned 500 Internal Server Error","sequence":2}` + "\n"))
+		default:
+			t.Fatalf("unexpected path: %s", request.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	result, err := RunWithResult(context.Background(), server.Client(), Request{
+		BaseURL:   server.URL,
+		Token:     "token",
+		JobID:     "xcode",
+		RequestID: "run-123",
+	}, &bytes.Buffer{})
+
+	if err == nil {
+		t.Fatal("expected report failure")
+	}
+	if result.Status != "passed" {
+		t.Fatalf("unexpected status: %s", result.Status)
+	}
+	if result.ExitCode != 0 {
+		t.Fatalf("unexpected exit code: %d", result.ExitCode)
+	}
+	if result.Error != "report failed: report endpoint returned 500 Internal Server Error" {
+		t.Fatalf("unexpected error: %s", result.Error)
 	}
 }
 

@@ -74,6 +74,8 @@ case "$*" in
 				write_output public-url "https://runner.example.com"
 			else
 				write_output build-id "build-from-fake-go"
+				write_output status "passed"
+				write_output exit-code "0"
 			fi
 		fi
 		;;
@@ -181,6 +183,8 @@ grep -q 'TRANSWARP_MIN_MEMORY_BYTES=34359738368' "$GO_LOG"
 expect_output request-id 1234-2-transwarp-build
 expect_output build-id build-from-fake-go
 expect_output job-id xcode-debug
+expect_output status passed
+expect_output exit-code 0
 
 (
 	INPUT_URL=https://runner.example.com
