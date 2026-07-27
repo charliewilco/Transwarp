@@ -88,6 +88,16 @@ struct GitHubActionWorkflowTests {
 		#expect(yaml.contains("# min-memory-bytes: 34359738368"))
 		#expect(yaml.contains("# min-xcode-version: '16.4'"))
 		#expect(!yaml.contains("checkout-metadata:"))
+		#expect(yaml.contains("name: Summarize Transwarp dispatch"))
+		#expect(yaml.contains("if: always() && steps.transwarp.outputs['build-id'] != ''"))
+		#expect(yaml.contains("### Transwarp dispatch"))
+		#expect(yaml.contains("steps.transwarp.outputs['request-id']"))
+		#expect(yaml.contains("steps.transwarp.outputs['build-id']"))
+		#expect(yaml.contains("steps.transwarp.outputs['job-id']"))
+		#expect(yaml.contains("steps.transwarp.outputs['status']"))
+		#expect(yaml.contains("steps.transwarp.outputs['exit-code']"))
+		#expect(yaml.contains("steps.transwarp.outputs['error']"))
+		#expect(yaml.contains("$GITHUB_STEP_SUMMARY"))
 		assertWorkflowInputIndentation(yaml, keys: [
 			"url:",
 				"token:",

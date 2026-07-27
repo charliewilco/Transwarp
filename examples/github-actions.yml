@@ -44,3 +44,21 @@ jobs:
           min-cpu-count: 12
           min-memory-bytes: 34359738368
           min-xcode-version: '16.4'
+
+      - name: Summarize Transwarp dispatch
+        if: always() && steps.transwarp.outputs['build-id'] != ''
+        run: |
+          {
+            echo "### Transwarp dispatch"
+            echo ""
+            echo "- Request ID: ${{ steps.transwarp.outputs['request-id'] }}"
+            echo "- Build ID: ${{ steps.transwarp.outputs['build-id'] }}"
+            echo "- Job ID: ${{ steps.transwarp.outputs['job-id'] }}"
+            if [ -n "${{ steps.transwarp.outputs['status'] }}" ]; then
+              echo "- Status: ${{ steps.transwarp.outputs['status'] }}"
+              echo "- Exit Code: ${{ steps.transwarp.outputs['exit-code'] }}"
+              if [ -n "${{ steps.transwarp.outputs['error'] }}" ]; then
+                echo "- Error: ${{ steps.transwarp.outputs['error'] }}"
+              fi
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

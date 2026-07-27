@@ -154,6 +154,12 @@ func checkDirectExample(root string) error {
 			return fmt.Errorf("direct example must set %s", input)
 		}
 	}
+	script := joinedRunScripts(steps)
+	for _, marker := range []string{"### Transwarp dispatch", "$GITHUB_STEP_SUMMARY", "steps.transwarp.outputs[", "job-id", "status", "exit-code", "error"} {
+		if !strings.Contains(script, marker) {
+			return errors.New("direct example must summarize dispatch result")
+		}
+	}
 	return nil
 }
 
