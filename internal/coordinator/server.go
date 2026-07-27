@@ -244,6 +244,7 @@ func (server *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /transwarp/dispatches/{requestID}/cancel", server.auth(server.cancelDispatch))
 	mux.HandleFunc("POST /transwarp/result", server.targetAuth(server.recordResult))
 	mux.HandleFunc("GET /transwarp/results", server.auth(server.listResults))
+	mux.HandleFunc("GET /transwarp/results/{requestID}", server.auth(server.getResult))
 	return mux
 }
 
@@ -863,6 +864,25 @@ func (server *Server) listResults(response http.ResponseWriter, request *http.Re
 		return results[i].StartedAt.Before(results[j].StartedAt)
 	})
 	writeJSON(response, http.StatusOK, results)
+}
+
+func (server *Server) getResult(response http.ResponseWriter, request *http.Request) {
+	requestID := strings.TrimSpace(request.PathValue("requestID"))
+	if requestID == "" {
+		writeJSON(response, http.StatusBadRequest, map[string]string{"error": "request_id is required"})
+		return
+	}
+	if err := requestmeta.ValidateRequestID(requestID); err != nil {
+		writeJSON(response, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+
+	result, ok := server.result(requestID)
+	if !ok {
+		writeJSON(response, http.StatusNotFound, map[string]string{"error": "unknown request_id"})
+		return
+	}
+	writeJSON(response, http.StatusOK, result)
 }
 
 func decodeJSONBody(reader io.Reader, value any) error {

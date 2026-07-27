@@ -1669,6 +1669,139 @@ func TestRecordAndListResult(t *testing.T) {
 	}
 }
 
+func TestGetResultByRequestID(t *testing.T) {
+	server := newTestServer(t, Options{
+		Token:          "coord-token",
+		TranswarpToken: "runner-token",
+		PublicURL:      "https://coordinator.test",
+	})
+	testServer := httptest.NewServer(server.Handler())
+	defer testServer.Close()
+
+	seedResult(server, BuildResult{
+		BuildID:   "build-123",
+		JobID:     "xcode-debug",
+		RequestID: "run-123",
+		MachineID: "machine-123",
+		Machine:   "Mac Studio",
+		Status:    "passed",
+		ExitCode:  0,
+	})
+
+	request, err := http.NewRequest(http.MethodGet, testServer.URL+"/transwarp/results/run-123", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Authorization", "Bearer coord-token")
+	response, err := testServer.Client().Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected get result status: %s", response.Status)
+	}
+
+	var result BuildResult
+	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	if result.RequestID != "run-123" || result.BuildID != "build-123" {
+		t.Fatalf("unexpected result: %+v", result)
+	}
+}
+
+func TestGetResultByRequestIDRequiresCIToken(t *testing.T) {
+	server := newTestServer(t, Options{
+		Token:          "coord-token",
+		TargetToken:    "target-token",
+		TranswarpToken: "runner-token",
+		PublicURL:      "https://coordinator.test",
+	})
+	testServer := httptest.NewServer(server.Handler())
+	defer testServer.Close()
+
+	seedResult(server, BuildResult{
+		BuildID:   "build-123",
+		JobID:     "xcode-debug",
+		RequestID: "run-123",
+		MachineID: "machine-123",
+		Machine:   "Mac Studio",
+		Status:    "passed",
+		ExitCode:  0,
+	})
+
+	request, err := http.NewRequest(http.MethodGet, testServer.URL+"/transwarp/results/run-123", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Authorization", "Bearer target-token")
+	response, err := testServer.Client().Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("target token should not read CI results, got %s", response.Status)
+	}
+}
+
+func TestGetResultByRequestIDRejectsUnsafeRequestID(t *testing.T) {
+	server := newTestServer(t, Options{
+		Token:          "coord-token",
+		TranswarpToken: "runner-token",
+		PublicURL:      "https://coordinator.test",
+	})
+	testServer := httptest.NewServer(server.Handler())
+	defer testServer.Close()
+
+	request, err := http.NewRequest(http.MethodGet, testServer.URL+"/transwarp/results/run%2F123", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Authorization", "Bearer coord-token")
+	response, err := testServer.Client().Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	data, _ := io.ReadAll(response.Body)
+	if response.StatusCode != http.StatusBadRequest {
+		t.Fatalf("unexpected unsafe request status: %s body: %s", response.Status, string(data))
+	}
+	if !strings.Contains(string(data), "request_id") {
+		t.Fatalf("expected request_id validation error, got %s", string(data))
+	}
+}
+
+func TestGetResultByRequestIDReturnsNotFound(t *testing.T) {
+	server := newTestServer(t, Options{
+		Token:          "coord-token",
+		TranswarpToken: "runner-token",
+		PublicURL:      "https://coordinator.test",
+	})
+	testServer := httptest.NewServer(server.Handler())
+	defer testServer.Close()
+
+	request, err := http.NewRequest(http.MethodGet, testServer.URL+"/transwarp/results/run-123", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Authorization", "Bearer coord-token")
+	response, err := testServer.Client().Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	data, _ := io.ReadAll(response.Body)
+	if response.StatusCode != http.StatusNotFound {
+		t.Fatalf("unexpected missing result status: %s body: %s", response.Status, string(data))
+	}
+	if !strings.Contains(string(data), "unknown request_id") {
+		t.Fatalf("expected missing request_id error, got %s", string(data))
+	}
+}
+
 func TestRecordResultRejectsResultWithoutActiveDispatch(t *testing.T) {
 	server := newTestServer(t, Options{
 		Token:          "coord-token",
