@@ -310,6 +310,30 @@ struct GitHubActionWorkflowTests {
 	}
 
 	@Test
+	func dispatchWorkflowsGuardTerminalResultSummary() throws {
+		let configuration = AgentConfiguration(
+			machineId: "machine-123",
+			machineName: "Mac",
+			sharedToken: "token",
+			tunnel: TunnelConfiguration(mode: .named),
+			jobs: [
+				BuildJob(
+					id: "xcode-debug",
+					label: "Xcode Debug",
+					workingDirectory: "",
+					command: "/usr/bin/xcodebuild"
+				)
+			]
+		)
+
+		let directWorkflow = try #require(GitHubActionWorkflow.make(for: configuration, mode: .direct))
+		let coordinatorWorkflow = try #require(GitHubActionWorkflow.make(for: configuration, mode: .coordinator))
+
+		assertTerminalResultSummaryGuard(directWorkflow.yaml)
+		assertTerminalResultSummaryGuard(coordinatorWorkflow.yaml)
+	}
+
+	@Test
 	func releaseEvidenceWorkflowUsesNamedTunnelAndCIProofInputsWithoutJobs() throws {
 		let configuration = AgentConfiguration(
 			machineId: "machine-123",
@@ -380,5 +404,22 @@ struct GitHubActionWorkflowTests {
 				.contains { $0.hasPrefix(expectedPrefix) }
 			#expect(hasExpectedLine, "Expected \(key) to be indented as an action input", sourceLocation: sourceLocation)
 		}
+	}
+
+	private func assertTerminalResultSummaryGuard(_ yaml: String, sourceLocation: SourceLocation = #_sourceLocation) {
+		let lines = yaml.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+		let guardIndex = lines.firstIndex {
+			$0.contains("if [ -n \"${{ steps.transwarp.outputs['status'] }}\" ]; then")
+		}
+		#expect(guardIndex != nil, "Expected terminal result summary to be guarded by status output", sourceLocation: sourceLocation)
+
+		guard let guardIndex, guardIndex + 5 < lines.count else {
+			return
+		}
+		#expect(lines[guardIndex + 1].contains("echo \"- Status: ${{ steps.transwarp.outputs['status'] }}\""), sourceLocation: sourceLocation)
+		#expect(lines[guardIndex + 2].contains("echo \"- Exit Code: ${{ steps.transwarp.outputs['exit-code'] }}\""), sourceLocation: sourceLocation)
+		#expect(lines[guardIndex + 3].contains("if [ -n \"${{ steps.transwarp.outputs['error'] }}\" ]; then"), sourceLocation: sourceLocation)
+		#expect(lines[guardIndex + 4].contains("echo \"- Error: ${{ steps.transwarp.outputs['error'] }}\""), sourceLocation: sourceLocation)
+		#expect(lines[guardIndex + 5].contains("fi"), sourceLocation: sourceLocation)
 	}
 }
