@@ -521,6 +521,51 @@ func TestRunWithResultTailingExistingBuildUsesStatusMetadata(t *testing.T) {
 	}
 }
 
+func TestRunWithResultTailsExistingBuildWhenJobIDIsProvided(t *testing.T) {
+	started := false
+	statusCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/v1/builds":
+			started = true
+			response.WriteHeader(http.StatusAccepted)
+			response.Write([]byte(`{"build_id":"new-build","status":"running"}`))
+		case "/v1/builds/build-123":
+			statusCount++
+			response.Write([]byte(`{"build_id":"build-123","job_id":"xcode-debug","request_id":"original-run","status":"passed","result":{"build_id":"build-123","job_id":"xcode-debug","request_id":"original-run","exit_code":0}}`))
+		case "/v1/builds/build-123/logs":
+			response.Write([]byte(`{"kind":"build","message":"passed","build_id":"build-123","job_id":"xcode-debug","request_id":"original-run","sequence":1}` + "\n"))
+		default:
+			t.Fatalf("unexpected path: %s", request.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	result, err := RunWithResult(context.Background(), server.Client(), Request{
+		BaseURL:   server.URL,
+		Token:     "token",
+		BuildID:   "build-123",
+		JobID:     "xcode-debug",
+		RequestID: "workflow-default-run",
+	}, &bytes.Buffer{})
+
+	if err != nil {
+		t.Fatalf("RunWithResult returned error: %v", err)
+	}
+	if started {
+		t.Fatal("existing build tail started a new build")
+	}
+	if statusCount < 1 {
+		t.Fatal("expected status metadata request")
+	}
+	if result.BuildID != "build-123" || result.RequestID != "original-run" || result.JobID != "xcode-debug" {
+		t.Fatalf("unexpected recovered result metadata: %+v", result)
+	}
+	if result.Status != "passed" || result.ExitCode != 0 {
+		t.Fatalf("unexpected terminal result: %+v", result)
+	}
+}
+
 func TestRunWithResultUsesTerminalStatusWhenRetainedLogsAreGone(t *testing.T) {
 	tests := []struct {
 		name      string

@@ -170,8 +170,8 @@ func RunWithResult(ctx context.Context, client *http.Client, request Request, ou
 	if request.Cancel {
 		return result, Cancel(ctx, client, request)
 	}
-	if request.BuildID != "" && request.JobID == "" {
-		return tailWithResult(ctx, client, request, output)
+	if request.BuildID != "" {
+		return tailWithResult(ctx, client, request, output, true)
 	}
 	started, err := Start(ctx, client, request)
 	if err != nil {
@@ -180,7 +180,7 @@ func RunWithResult(ctx context.Context, client *http.Client, request Request, ou
 
 	request.BuildID = started.BuildID
 	result.BuildID = started.BuildID
-	tailResult, err := tailWithResult(ctx, client, request, output)
+	tailResult, err := tailWithResult(ctx, client, request, output, false)
 	if tailResult.Status != "" {
 		result.Status = tailResult.Status
 		result.ExitCode = tailResult.ExitCode
@@ -344,11 +344,11 @@ func streamContextEnded(err error) bool {
 }
 
 func Tail(ctx context.Context, client *http.Client, request Request, output io.Writer) error {
-	_, err := tailWithResult(ctx, client, request, output)
+	_, err := tailWithResult(ctx, client, request, output, false)
 	return err
 }
 
-func tailWithResult(ctx context.Context, client *http.Client, request Request, output io.Writer) (RunResult, error) {
+func tailWithResult(ctx context.Context, client *http.Client, request Request, output io.Writer, preflightStatus bool) (RunResult, error) {
 	result := RunResult{RequestID: request.RequestID, BuildID: request.BuildID, JobID: request.JobID}
 	if err := request.ValidateBuildID(); err != nil {
 		return result, err
@@ -356,8 +356,9 @@ func tailWithResult(ctx context.Context, client *http.Client, request Request, o
 	if client == nil {
 		client = tunnelnet.NoRedirectHTTPClient()
 	}
-	if request.JobID == "" {
-		if status, err := GetStatus(ctx, client, request); err == nil {
+	if preflightStatus {
+		status, err := GetStatus(ctx, client, request)
+		if err == nil {
 			mergeStatusResult(&result, status)
 		}
 	}
