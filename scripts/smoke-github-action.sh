@@ -308,6 +308,14 @@ expect_output status passed
 expect_output exit-code 0
 
 (
+	INPUT_MODE=coordinator
+	INPUT_COORDINATOR_URL=https://coordinator.example.com
+	INPUT_COORDINATOR_TOKEN=coordinator-token
+	INPUT_RESULT=true
+	expect_failure coordinator_result_without_request_id 'request-id is required when querying a coordinator result' run_action
+)
+
+(
 	INPUT_URL=https://runner.example.com
 	INPUT_TOKEN=runner-token
 	INPUT_JOB=xcode-debug

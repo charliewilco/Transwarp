@@ -52,7 +52,7 @@ inputs:
     description: Configured Transwarp job ID. Use only letters, numbers, dots, underscores, or hyphens, up to 128 bytes.
     required: false
   request-id:
-    description: Stable request ID for this workflow attempt. Use only letters, numbers, dots, underscores, or hyphens, up to 256 bytes. Defaults to github.run_id-github.run_attempt-github.job.
+    description: Stable request ID for this workflow attempt. Use only letters, numbers, dots, underscores, or hyphens, up to 256 bytes. Defaults to github.run_id-github.run_attempt-github.job when starting a dispatch; required for coordinator cancel or result lookup.
     required: false
   build-id:
     description: Existing direct runner build ID to cancel or tail. Use only letters, numbers, dots, underscores, or hyphens, up to 128 bytes.
@@ -262,6 +262,10 @@ runs:
         fi
         if [ "$INPUT_CANCEL" = "true" ] && [ "$INPUT_MODE" = "coordinator" ] && [ -z "$INPUT_REQUEST_ID" ]; then
           echo "request-id is required when canceling a coordinator dispatch" >&2
+          exit 1
+        fi
+        if [ "$INPUT_RESULT" = "true" ] && [ -z "$INPUT_REQUEST_ID" ]; then
+          echo "request-id is required when querying a coordinator result" >&2
           exit 1
         fi
 

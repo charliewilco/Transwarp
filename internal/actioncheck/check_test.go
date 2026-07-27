@@ -54,7 +54,12 @@ func TestCheckRejectsRequestIDDescriptionWithoutGitHubJobDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	modified := strings.Replace(string(data), "Defaults to github.run_id-github.run_attempt-github.job.", "Defaults to the current workflow attempt.", 1)
+	modified := strings.Replace(
+		string(data),
+		"Defaults to github.run_id-github.run_attempt-github.job when starting a dispatch; required for coordinator cancel or result lookup.",
+		"Defaults to the current workflow attempt.",
+		1,
+	)
 	if modified == string(data) {
 		t.Fatal("test fixture did not contain request-id default description")
 	}

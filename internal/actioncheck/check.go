@@ -45,8 +45,8 @@ func Check(root string) error {
 		}
 	}
 	requestID, ok := mapValueAny(inputs["request-id"])
-	if !ok || !strings.Contains(value(requestID, "description"), "github.job") {
-		return errors.New("action.yml request-id input description must document the default job component")
+	if !ok || !strings.Contains(value(requestID, "description"), "github.job") || !strings.Contains(value(requestID, "description"), "required for coordinator cancel or result lookup") {
+		return errors.New("action.yml request-id input description must document defaults and explicit lookup requirements")
 	}
 	outputs, ok := mapValue(action, "outputs")
 	if !ok {
@@ -77,7 +77,7 @@ func Check(root string) error {
 		{"action.yml must reject report callbacks outside direct mode", []string{"report-url and report-token are only supported in direct mode"}},
 		{"action.yml must validate cancel inputs", []string{"build-id is required when canceling a direct runner build", "request-id is required when canceling a coordinator dispatch"}},
 		{"action.yml must validate tail inputs", []string{"tail is only supported in direct mode", "build-id is required when tailing a direct runner build"}},
-		{"action.yml must validate result inputs", []string{"result is only supported in coordinator mode", "cancel and result cannot both be true", "tail and result cannot both be true", "-result"}},
+		{"action.yml must validate result inputs", []string{"result is only supported in coordinator mode", "cancel and result cannot both be true", "tail and result cannot both be true", "request-id is required when querying a coordinator result", "-result"}},
 	} {
 		if !assertion.matches(actionScript) {
 			return errors.New(assertion.message)
