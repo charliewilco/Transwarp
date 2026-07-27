@@ -7,8 +7,13 @@ struct LogView: View {
 	var body: some View {
 		VStack(alignment: .leading, spacing: 12) {
 			HStack {
-				Text("Runner Logs")
-					.font(.headline)
+				VStack(alignment: .leading, spacing: 3) {
+					Text("Runner Logs")
+						.font(.headline)
+					Text("Status, tunnel, registration, and build output")
+						.font(.caption)
+						.foregroundStyle(.secondary)
+				}
 				Spacer()
 				Text("\(model.events.count) events")
 					.font(.caption)
@@ -51,7 +56,6 @@ struct LogView: View {
 			}
 			.clipShape(RoundedRectangle(cornerRadius: 8))
 		}
-		.padding(20)
 	}
 
 	private func logLine(for event: RunnerEvent) -> String {

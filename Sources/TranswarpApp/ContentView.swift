@@ -13,17 +13,17 @@ struct ContentView: View {
 						.frame(maxWidth: .infinity, alignment: .leading)
 						.padding(20)
 				}
-				.frame(width: 440)
+				.frame(width: 420)
 				.background(.regularMaterial)
 				.scrollIndicators(.visible)
 
 				Divider()
 
-				LogView()
+				OperationsDetailView()
 					.frame(maxWidth: .infinity, maxHeight: .infinity)
 			}
 		}
-		.frame(minWidth: 1040, minHeight: 680)
+		.frame(minWidth: 1120, minHeight: 720)
 	}
 }
 

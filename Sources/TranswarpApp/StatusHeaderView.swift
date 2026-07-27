@@ -4,12 +4,13 @@ struct StatusHeaderView: View {
 	@Environment(AppModel.self) private var model
 
 	var body: some View {
-		HStack(spacing: 16) {
-			VStack(alignment: .leading, spacing: 4) {
+		HStack(spacing: 14) {
+			VStack(alignment: .leading, spacing: 3) {
 				Text("Transwarp")
-					.font(.title2.weight(.semibold))
-				Text(model.status.label)
-					.foregroundStyle(.secondary)
+					.font(.title3.weight(.semibold))
+				Label(model.status.label, systemImage: statusIcon)
+					.font(.subheadline)
+					.foregroundStyle(statusColor)
 			}
 
 			Spacer()
@@ -44,7 +45,31 @@ struct StatusHeaderView: View {
 			.disabled(!model.canStop && !model.canStart)
 			.help(model.canStart || model.canStop ? "" : model.configurationIssues.first ?? "Configuration is not ready")
 		}
-		.padding(20)
+		.padding(.horizontal, 24)
+		.padding(.vertical, 16)
+	}
+
+	private var statusIcon: String {
+		if model.status.isRunning {
+			return "checkmark.circle.fill"
+		}
+		if model.status.isActive {
+			return "arrow.triangle.2.circlepath"
+		}
+		return "circle"
+	}
+
+	private var statusColor: Color {
+		switch model.status {
+		case .running:
+			return .green
+		case .starting, .stopping:
+			return .orange
+		case .stoppedWithFailure:
+			return .red
+		case .stopped:
+			return .secondary
+		}
 	}
 }
 
