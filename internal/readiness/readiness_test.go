@@ -503,6 +503,7 @@ func TestCleanMacEvidencePassesWithStructuredReceipt(t *testing.T) {
 		"job_id": "clean-mac-launch",
 		"request_id": "request-123",
 		"build_id": "build-123",
+		"exit_code": 0,
 		"strict_codesign": true,
 		"notarization_staple": true,
 		"gatekeeper_accepted": true,
@@ -556,7 +557,7 @@ func TestWriteCleanMacEvidenceWritesSelfContainedReceipt(t *testing.T) {
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(buildStatusPath, []byte(`{"build_id":"build-123","job_id":"clean-mac-launch","request_id":"request-123","status":"passed"}`), 0o600); err != nil {
+	if err := os.WriteFile(buildStatusPath, []byte(`{"build_id":"build-123","job_id":"clean-mac-launch","request_id":"request-123","status":"passed","result":{"build_id":"build-123","job_id":"clean-mac-launch","request_id":"request-123","exit_code":0}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(codesignLogPath, []byte("Transwarp.app: valid on disk\nTranswarp.app: satisfies its Designated Requirement\n"), 0o600); err != nil {
@@ -636,8 +637,63 @@ func TestWriteCleanMacEvidenceWritesSelfContainedReceipt(t *testing.T) {
 	if !strings.Contains(string(receipt), `"app": "Transwarp.app"`) {
 		t.Fatalf("expected path-neutral app name in receipt:\n%s", receipt)
 	}
+	if !strings.Contains(string(receipt), `"exit_code": 0`) {
+		t.Fatalf("expected terminal exit code in receipt:\n%s", receipt)
+	}
 	if strings.Contains(string(receipt), appPath) || strings.Contains(string(receipt), dir) {
 		t.Fatalf("expected receipt to omit absolute local paths:\n%s", receipt)
+	}
+}
+
+func TestCleanMacEvidenceRequiresTerminalExitCode(t *testing.T) {
+	dir := t.TempDir()
+	appPath, _ := writeCleanMacBundleFixture(t, dir)
+	writeCleanMacEvidenceCompanionLogs(t, dir)
+	if err := os.WriteFile(filepath.Join(dir, "clean-mac-status.json"), []byte(`{
+		"machine_id": "clean-mac-123",
+		"jobs": ["clean-mac-launch"],
+		"recent_builds": [{"build_id":"build-123","request_id":"request-123","status":"passed"}]
+	}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	outputPath := filepath.Join(dir, "clean-mac-evidence.json")
+	if err := WriteCleanMacEvidence(CleanMacEvidenceWriteOptions{
+		OutputPath:        outputPath,
+		AppPath:           appPath,
+		Architecture:      "arm64",
+		MacOS:             "macOS 15.6",
+		MachineID:         "clean-mac-123",
+		JobID:             "clean-mac-launch",
+		RequestID:         "request-123",
+		BuildID:           "build-123",
+		StatusJSONPath:    filepath.Join(dir, "clean-mac-status.json"),
+		BuildLogPath:      filepath.Join(dir, "clean-mac-build.ndjson"),
+		BuildStatusPath:   filepath.Join(dir, "clean-mac-build-status.json"),
+		CodesignLogPath:   filepath.Join(dir, "clean-mac-codesign.log"),
+		StaplerLogPath:    filepath.Join(dir, "clean-mac-stapler.log"),
+		GatekeeperLogPath: filepath.Join(dir, "clean-mac-gatekeeper.log"),
+		AppLogPath:        filepath.Join(dir, "clean-mac-app.log"),
+		AppStderrPath:     filepath.Join(dir, "clean-mac-app.err"),
+		Now:               fixedNow,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	modified := strings.Replace(string(data), "\n\t\"exit_code\": 0,", "", 1)
+	if modified == string(data) {
+		t.Fatal("fixture did not contain exit_code")
+	}
+	if err := os.WriteFile(outputPath, []byte(modified), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	check := cleanMacEvidenceCheck(outputPath, appPath)
+	if check.Status != StatusMissing || !strings.Contains(check.Detail, "exit_code") {
+		t.Fatalf("expected exit_code missing detail, got %+v", check)
 	}
 }
 
@@ -1150,7 +1206,7 @@ func writeCleanMacEvidenceCompanionLogs(t *testing.T, dir string) {
 `), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "clean-mac-build-status.json"), []byte(`{"build_id":"build-123","job_id":"clean-mac-launch","request_id":"request-123","status":"passed"}`), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "clean-mac-build-status.json"), []byte(`{"build_id":"build-123","job_id":"clean-mac-launch","request_id":"request-123","status":"passed","result":{"build_id":"build-123","job_id":"clean-mac-launch","request_id":"request-123","exit_code":0}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "clean-mac-codesign.log"), []byte("Transwarp.app: valid on disk\nTranswarp.app: satisfies its Designated Requirement\n"), 0o600); err != nil {

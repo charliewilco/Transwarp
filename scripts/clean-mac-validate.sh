@@ -111,6 +111,7 @@ write_clean_mac_evidence() {
 		-clean-mac-job-id clean-mac-launch \
 		-clean-mac-request-id "$REQUEST_ID" \
 		-clean-mac-build-id "$BUILD_ID" \
+		-clean-mac-exit-code "$EXIT_CODE" \
 		-clean-mac-status-json "$STATUS_JSON" \
 		-clean-mac-build-log "$BUILD_LOG" \
 		-clean-mac-build-status-json "$BUILD_STATUS_JSON" \
@@ -222,6 +223,12 @@ curl -fsS -H "Authorization: Bearer $TOKEN" "http://127.0.0.1:$PORT/v1/builds/$B
 grep -q "\"request_id\":\"$REQUEST_ID\"" "$BUILD_STATUS_JSON" || fail "build status did not include request_id"
 grep -q "\"build_id\":\"$BUILD_ID\"" "$BUILD_STATUS_JSON" || fail "build status did not include build_id"
 grep -q '"status":"passed"' "$BUILD_STATUS_JSON" || fail "build status did not pass"
+EXIT_CODE="$(json_string_field "$BUILD_STATUS_JSON" result.exit_code)"
+if [ "$EXIT_CODE" != "0" ]; then
+	echo "build status did not include terminal exit_code 0" >&2
+	sed -n '1,120p' "$BUILD_STATUS_JSON" >&2 || true
+	fail "build status did not include exit_code 0"
+fi
 
 curl -fsS -H "Authorization: Bearer $TOKEN" "http://127.0.0.1:$PORT/status" >"$STATUS_JSON"
 grep -q "\"request_id\":\"$REQUEST_ID\"" "$STATUS_JSON" || fail "runner status did not record recent build request_id"

@@ -20,6 +20,7 @@ type CleanMacEvidenceWriteOptions struct {
 	JobID             string
 	RequestID         string
 	BuildID           string
+	ExitCode          int
 	StatusJSONPath    string
 	BuildLogPath      string
 	BuildStatusPath   string
@@ -47,6 +48,7 @@ type cleanMacEvidenceReceipt struct {
 	JobID               string `json:"job_id"`
 	RequestID           string `json:"request_id"`
 	BuildID             string `json:"build_id"`
+	ExitCode            int    `json:"exit_code"`
 	StrictCodesign      bool   `json:"strict_codesign"`
 	NotarizationStaple  bool   `json:"notarization_staple"`
 	GatekeeperAccepted  bool   `json:"gatekeeper_accepted"`
@@ -148,6 +150,7 @@ func WriteCleanMacEvidence(options CleanMacEvidenceWriteOptions) error {
 		JobID:               options.JobID,
 		RequestID:           options.RequestID,
 		BuildID:             options.BuildID,
+		ExitCode:            options.ExitCode,
 		StrictCodesign:      true,
 		NotarizationStaple:  true,
 		GatekeeperAccepted:  true,

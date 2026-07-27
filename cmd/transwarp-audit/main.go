@@ -57,6 +57,7 @@ func main() {
 	cleanMacJobID := ""
 	cleanMacRequestID := ""
 	cleanMacBuildID := ""
+	cleanMacExitCode := envInt("TRANSWARP_CLEAN_MAC_EXIT_CODE", 0)
 	cleanMacStatusJSON := ""
 	cleanMacBuildLog := ""
 	cleanMacBuildStatus := ""
@@ -152,6 +153,7 @@ func main() {
 	flag.StringVar(&cleanMacJobID, "clean-mac-job-id", os.Getenv("TRANSWARP_CLEAN_MAC_JOB_ID"), "job ID used by clean-Mac validation")
 	flag.StringVar(&cleanMacRequestID, "clean-mac-request-id", os.Getenv("TRANSWARP_CLEAN_MAC_REQUEST_ID"), "request ID used by clean-Mac validation")
 	flag.StringVar(&cleanMacBuildID, "clean-mac-build-id", os.Getenv("TRANSWARP_CLEAN_MAC_BUILD_ID"), "build ID accepted during clean-Mac validation")
+	flag.IntVar(&cleanMacExitCode, "clean-mac-exit-code", cleanMacExitCode, "terminal exit code reported by clean-Mac validation")
 	flag.StringVar(&cleanMacStatusJSON, "clean-mac-status-json", os.Getenv("TRANSWARP_CLEAN_MAC_STATUS_JSON"), "status JSON from clean-Mac validation")
 	flag.StringVar(&cleanMacBuildLog, "clean-mac-build-log", os.Getenv("TRANSWARP_CLEAN_MAC_BUILD_LOG"), "build log from clean-Mac validation")
 	flag.StringVar(&cleanMacBuildStatus, "clean-mac-build-status-json", os.Getenv("TRANSWARP_CLEAN_MAC_BUILD_STATUS_JSON"), "build status JSON from clean-Mac validation")
@@ -357,6 +359,7 @@ func main() {
 			JobID:             cleanMacJobID,
 			RequestID:         cleanMacRequestID,
 			BuildID:           cleanMacBuildID,
+			ExitCode:          cleanMacExitCode,
 			StatusJSONPath:    cleanMacStatusJSON,
 			BuildLogPath:      cleanMacBuildLog,
 			BuildStatusPath:   cleanMacBuildStatus,
