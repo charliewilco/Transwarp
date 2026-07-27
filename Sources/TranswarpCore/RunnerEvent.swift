@@ -272,6 +272,17 @@ public struct BuildStatus: Codable, Equatable, Identifiable, Sendable {
 		status == "passed" || status == "failed" || status == "canceled"
 	}
 
+	public var resultSummary: String? {
+		guard let result else {
+			return nil
+		}
+		let error = result.error?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+		if error.isEmpty {
+			return "Exit \(result.exitCode)"
+		}
+		return "Exit \(result.exitCode): \(error)"
+	}
+
 	public init(buildId: String, jobId: String, requestId: String? = nil, status: String, createdAt: String, reportStatus: String? = nil, reportError: String? = nil, result: BuildResult? = nil) {
 		self.buildId = buildId
 		self.jobId = jobId

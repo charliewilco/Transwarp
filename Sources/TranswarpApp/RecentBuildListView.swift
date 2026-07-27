@@ -35,10 +35,12 @@ struct RecentBuildListView: View {
 								.truncationMode(.middle)
 								.textSelection(.enabled)
 						}
-						if let result = build.result {
-							Text("Exit \(result.exitCode)")
+						if let resultSummary = build.resultSummary {
+							Text(resultSummary)
 								.font(.caption)
 								.foregroundStyle(.secondary)
+								.lineLimit(2)
+								.textSelection(.enabled)
 						}
 						if let reportStatus = build.reportStatus, !reportStatus.isEmpty {
 							Label(reportLabel(for: reportStatus), systemImage: reportIcon(for: reportStatus))

@@ -29,6 +29,42 @@ struct RunnerEventTests {
 	}
 
 	@Test
+	func buildStatusResultSummaryIncludesTerminalError() {
+		let passed = BuildStatus(
+			buildId: "build-passed",
+			jobId: "xcode",
+			status: "passed",
+			createdAt: "now",
+			result: BuildResult(
+				buildId: "build-passed",
+				jobId: "xcode",
+				startedAt: "start",
+				endedAt: "end",
+				exitCode: 0
+			)
+		)
+		let failed = BuildStatus(
+			buildId: "build-failed",
+			jobId: "xcode",
+			status: "failed",
+			createdAt: "now",
+			result: BuildResult(
+				buildId: "build-failed",
+				jobId: "xcode",
+				startedAt: "start",
+				endedAt: "end",
+				exitCode: 65,
+				error: "xcodebuild exited 65"
+			)
+		)
+		let running = BuildStatus(buildId: "build-running", jobId: "xcode", status: "running", createdAt: "now")
+
+		#expect(passed.resultSummary == "Exit 0")
+		#expect(failed.resultSummary == "Exit 65: xcodebuild exited 65")
+		#expect(running.resultSummary == nil)
+	}
+
+	@Test
 	func buildStartPayloadUsesRunnerJSONKeys() throws {
 		let payload = BuildStartPayload(
 			jobId: "xcode-debug",
