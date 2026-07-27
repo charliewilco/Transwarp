@@ -36,6 +36,9 @@ INVALID_ACCEPTED_METADATA_STDERR="$ROOT/.build/release-evidence-$SMOKE_ID-invali
 INVALID_ACCEPTED_METADATA_SMOKE="$ROOT/.build/release-evidence-$SMOKE_ID-invalid-accepted-metadata-smoke.sh"
 MISSING_POLICY_EVIDENCE_DIR="$ROOT/.build/release-evidence-$SMOKE_ID-missing-policy"
 MISSING_POLICY_STDERR="$ROOT/.build/release-evidence-$SMOKE_ID-missing-policy.stderr"
+MANIFEST_POLICY_APP="$ROOT/.build/Transwarp-$SMOKE_ID-manifest-policy.app"
+MANIFEST_POLICY_EVIDENCE_DIR="$ROOT/.build/release-evidence-$SMOKE_ID-manifest-policy"
+MANIFEST_POLICY_STDERR="$ROOT/.build/release-evidence-$SMOKE_ID-manifest-policy.stderr"
 MISSING_SIGNING_EVIDENCE_DIR="$ROOT/.build/release-evidence-$SMOKE_ID-missing-signing"
 MISSING_SIGNING_STDERR="$ROOT/.build/release-evidence-$SMOKE_ID-missing-signing.stderr"
 MISSING_NOTARIZE_EVIDENCE_DIR="$ROOT/.build/release-evidence-$SMOKE_ID-missing-notarize"
@@ -305,6 +308,35 @@ fi
 
 if ! grep -q "TRANSWARP_EXPECTED_CLOUDFLARED_VERSION is required unless TRANSWARP_COLLECT_ALLOW_INCOMPLETE=1" "$MISSING_POLICY_STDERR"; then
 	echo "missing cloudflared version policy failure did not explain strict release requirement" >&2
+	exit 1
+fi
+
+mkdir -p "$MANIFEST_POLICY_APP/Contents/Resources"
+cat > "$MANIFEST_POLICY_APP/Contents/Resources/TranswarpManifest.json" <<'JSON'
+{
+	"expected_cloudflared_version": "cloudflared version smoke"
+}
+JSON
+
+if TRANSWARP_EVIDENCE_DIR="$MANIFEST_POLICY_EVIDENCE_DIR" \
+	TRANSWARP_APP_PATH="$MANIFEST_POLICY_APP" \
+	TRANSWARP_COLLECT_NAMED_TUNNEL=0 \
+	TRANSWARP_COLLECT_ALLOW_INCOMPLETE=0 \
+	SIGN_IDENTITY="Developer ID Application: Smoke (TEAMID)" \
+	TRANSWARP_NOTARIZE_REQUESTED=1 \
+	APPLE_KEYCHAIN_PROFILE=smoke-profile \
+	./scripts/collect-release-evidence.sh 2> "$MANIFEST_POLICY_STDERR"; then
+	echo "expected missing named-tunnel evidence to fail after manifest cloudflared policy" >&2
+	exit 1
+fi
+
+if ! grep -q "named-tunnel evidence is required" "$MANIFEST_POLICY_STDERR"; then
+	echo "manifest cloudflared policy did not advance to strict evidence validation" >&2
+	exit 1
+fi
+
+if grep -q "TRANSWARP_EXPECTED_CLOUDFLARED_VERSION is required" "$MANIFEST_POLICY_STDERR"; then
+	echo "manifest cloudflared policy was not accepted by strict release collection" >&2
 	exit 1
 fi
 
