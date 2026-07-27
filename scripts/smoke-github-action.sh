@@ -104,6 +104,7 @@ run_action() {
 		INPUT_REPO_URL="${INPUT_REPO_URL:-}" \
 		INPUT_REF="${INPUT_REF:-}" \
 		INPUT_COMMIT="${INPUT_COMMIT:-}" \
+		INPUT_CHECKOUT_METADATA="${INPUT_CHECKOUT_METADATA:-true}" \
 		INPUT_MACHINE_ID="${INPUT_MACHINE_ID:-}" \
 		INPUT_MIN_CPU_COUNT="${INPUT_MIN_CPU_COUNT:-}" \
 		INPUT_MIN_MEMORY_BYTES="${INPUT_MIN_MEMORY_BYTES:-}" \
@@ -172,6 +173,21 @@ grep -q 'TRANSWARP_MIN_MEMORY_BYTES=34359738368' "$GO_LOG"
 expect_output request-id 1234-2-transwarp-build
 expect_output build-id build-from-fake-go
 expect_output job-id xcode-debug
+
+(
+	INPUT_URL=https://runner.example.com
+	INPUT_TOKEN=runner-token
+	INPUT_JOB=local-debug
+	INPUT_CHECKOUT_METADATA=false
+	expect_success direct_without_checkout_metadata run_action
+)
+grep -q '^TRANSWARP_REPO_URL=$' "$GO_LOG"
+grep -q '^TRANSWARP_REF=$' "$GO_LOG"
+grep -q '^TRANSWARP_COMMIT=$' "$GO_LOG"
+if grep -q 'TRANSWARP_REPO_URL=https://github.com/example/app.git' "$GO_LOG"; then
+	echo "checkout metadata opt-out should not send the default GitHub repository URL" >&2
+	exit 1
+fi
 
 (
 	GITHUB_REPOSITORY=
@@ -330,6 +346,14 @@ grep -q '^TRANSWARP_REQUEST_ID=run-to-cancel$' "$GO_LOG"
 	INPUT_JOB=xcode-debug
 	INPUT_ALLOW_HTTP=maybe
 	expect_failure invalid_allow_http 'allow-http must be true, 1, yes, false, 0, or no' run_action
+)
+
+(
+	INPUT_URL=https://runner.example.com
+	INPUT_TOKEN=runner-token
+	INPUT_JOB=xcode-debug
+	INPUT_CHECKOUT_METADATA=maybe
+	expect_failure invalid_checkout_metadata 'checkout-metadata must be true, 1, yes, false, 0, or no' run_action
 )
 
 (

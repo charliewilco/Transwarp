@@ -62,6 +62,10 @@ inputs:
   commit:
     description: Commit SHA to check out on the Mac. Defaults to github.sha.
     required: false
+  checkout-metadata:
+    description: Send repo-url, ref, and commit metadata to the Mac. Set false for jobs with checkout disabled.
+    required: false
+    default: "true"
   machine-id:
     description: Optional registered machine ID when dispatching or diagnosing through a coordinator. Use only letters, numbers, dots, underscores, or hyphens, up to 128 bytes.
     required: false
@@ -127,6 +131,7 @@ runs:
         INPUT_REPO_URL: "${{ inputs.repo-url }}"
         INPUT_REF: "${{ inputs.ref }}"
         INPUT_COMMIT: "${{ inputs.commit }}"
+        INPUT_CHECKOUT_METADATA: "${{ inputs.checkout-metadata }}"
         INPUT_MACHINE_ID: "${{ inputs.machine-id }}"
         INPUT_MIN_CPU_COUNT: "${{ inputs.min-cpu-count }}"
         INPUT_MIN_MEMORY_BYTES: "${{ inputs.min-memory-bytes }}"
@@ -202,6 +207,7 @@ runs:
         INPUT_ALLOW_HTTP="$(normalize_boolean allow-http "$INPUT_ALLOW_HTTP")"
         INPUT_CANCEL="$(normalize_boolean cancel "$INPUT_CANCEL")"
         INPUT_TAIL="$(normalize_boolean tail "$INPUT_TAIL")"
+        INPUT_CHECKOUT_METADATA="$(normalize_boolean checkout-metadata "$INPUT_CHECKOUT_METADATA")"
         require_unsigned_integer min-cpu-count "$INPUT_MIN_CPU_COUNT"
         require_unsigned_integer min-memory-bytes "$INPUT_MIN_MEMORY_BYTES"
         EFFECTIVE_REQUEST_ID="${INPUT_REQUEST_ID:-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}-${GITHUB_JOB:-job}}"
@@ -263,15 +269,21 @@ runs:
         fi
         export TRANSWARP_REQUEST_ID="$EFFECTIVE_REQUEST_ID"
         export TRANSWARP_BUILD_ID="$INPUT_BUILD_ID"
-        if [ -n "$INPUT_REPO_URL" ]; then
-          export TRANSWARP_REPO_URL="$INPUT_REPO_URL"
-        elif [ -n "${GITHUB_REPOSITORY:-}" ]; then
-          export TRANSWARP_REPO_URL="${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY.git"
+        if [ "$INPUT_CHECKOUT_METADATA" = "true" ]; then
+          if [ -n "$INPUT_REPO_URL" ]; then
+            export TRANSWARP_REPO_URL="$INPUT_REPO_URL"
+          elif [ -n "${GITHUB_REPOSITORY:-}" ]; then
+            export TRANSWARP_REPO_URL="${GITHUB_SERVER_URL:-https://github.com}/$GITHUB_REPOSITORY.git"
+          else
+            export TRANSWARP_REPO_URL=""
+          fi
+          export TRANSWARP_REF="${INPUT_REF:-${GITHUB_REF:-}}"
+          export TRANSWARP_COMMIT="${INPUT_COMMIT:-${GITHUB_SHA:-}}"
         else
           export TRANSWARP_REPO_URL=""
+          export TRANSWARP_REF=""
+          export TRANSWARP_COMMIT=""
         fi
-        export TRANSWARP_REF="${INPUT_REF:-${GITHUB_REF:-}}"
-        export TRANSWARP_COMMIT="${INPUT_COMMIT:-${GITHUB_SHA:-}}"
         export TRANSWARP_MACHINE_ID="$INPUT_MACHINE_ID"
         export TRANSWARP_MIN_CPU_COUNT="$INPUT_MIN_CPU_COUNT"
         export TRANSWARP_MIN_MEMORY_BYTES="$INPUT_MIN_MEMORY_BYTES"

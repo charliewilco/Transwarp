@@ -121,6 +121,7 @@ public struct GitHubActionWorkflow: Equatable, Sendable {
 			          tail: ${{ inputs.tail }}
 			          build-id: ${{ inputs.build-id }}
 			          job: \(Self.yamlSingleQuoted(jobID))
+			\(checkoutMetadataInput)
 			          # report-url: ${{ secrets.TRANSWARP_REPORT_URL }}
 			          # report-token: ${{ secrets.TRANSWARP_REPORT_TOKEN }}
 			          # min-cpu-count: 12
@@ -161,6 +162,7 @@ public struct GitHubActionWorkflow: Equatable, Sendable {
 			          cancel: ${{ inputs.cancel }}
 			          request-id: ${{ inputs.request-id }}
 			          job: \(Self.yamlSingleQuoted(jobID))
+			\(checkoutMetadataInput)
 			          # min-cpu-count: 12
 			          # min-memory-bytes: 34359738368
 			          # min-xcode-version: '16.4'
@@ -289,6 +291,13 @@ public struct GitHubActionWorkflow: Equatable, Sendable {
 			        uses: actions/checkout@v4
 
 			"""
+	}
+
+	private var checkoutMetadataInput: String {
+		guard !jobCheckout else {
+			return ""
+		}
+		return "          checkout-metadata: 'false'\n"
 	}
 
 	private var selfHostedGoSetupStep: String {

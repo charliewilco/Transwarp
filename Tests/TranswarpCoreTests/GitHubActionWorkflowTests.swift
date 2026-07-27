@@ -87,6 +87,7 @@ struct GitHubActionWorkflowTests {
 		#expect(yaml.contains("# min-cpu-count: 12"))
 		#expect(yaml.contains("# min-memory-bytes: 34359738368"))
 		#expect(yaml.contains("# min-xcode-version: '16.4'"))
+		#expect(!yaml.contains("checkout-metadata:"))
 		assertWorkflowInputIndentation(yaml, keys: [
 			"url:",
 				"token:",
@@ -103,6 +104,37 @@ struct GitHubActionWorkflowTests {
 			"# min-xcode-version:"
 		])
 		#expect(!yaml.contains("local-runner-token"))
+	}
+
+	@Test
+	func directWorkflowDisablesCheckoutMetadataForLocalJobs() throws {
+		let configuration = AgentConfiguration(
+			listenAddress: "127.0.0.1:8188",
+			machineId: "machine-123",
+			machineName: "Mac",
+			sharedToken: "local-runner-token",
+			tunnel: TunnelConfiguration(mode: .named),
+			jobs: [
+				BuildJob(
+					id: "local-debug",
+					label: "Local Debug",
+					workingDirectory: "/Users/charlie/App",
+					checkout: false,
+					command: "/usr/bin/xcodebuild"
+				)
+			]
+		)
+
+		let workflow = try #require(GitHubActionWorkflow.make(for: configuration, mode: .direct))
+		let yaml = workflow.yaml
+
+		#expect(yaml.contains("job: 'local-debug'"))
+		#expect(yaml.contains("checkout-metadata: 'false'"))
+		assertWorkflowInputIndentation(yaml, keys: [
+			"job:",
+			"checkout-metadata:",
+			"# report-url:"
+		])
 	}
 
 	@Test
@@ -137,6 +169,7 @@ struct GitHubActionWorkflowTests {
 		#expect(yaml.contains("# min-cpu-count: 12"))
 		#expect(yaml.contains("# min-memory-bytes: 34359738368"))
 		#expect(yaml.contains("# min-xcode-version: '16.4'"))
+		#expect(!yaml.contains("checkout-metadata:"))
 		#expect(yaml.contains("name: Summarize selected runner"))
 		#expect(yaml.contains("if: always() && steps.transwarp.outputs['build-id'] != ''"))
 		#expect(yaml.contains("### Transwarp dispatch"))
@@ -158,6 +191,37 @@ struct GitHubActionWorkflowTests {
 			"# min-cpu-count:",
 			"# min-memory-bytes:",
 			"# min-xcode-version:"
+		])
+	}
+
+	@Test
+	func coordinatorWorkflowDisablesCheckoutMetadataForLocalJobs() throws {
+		let configuration = AgentConfiguration(
+			machineId: "machine-123",
+			machineName: "Mac",
+			sharedToken: "local-runner-token",
+			tunnel: TunnelConfiguration(mode: .named),
+			jobs: [
+				BuildJob(
+					id: "local-release",
+					label: "Local Release",
+					workingDirectory: "/Users/charlie/App",
+					checkout: false,
+					command: "/usr/bin/xcodebuild"
+				)
+			]
+		)
+
+		let workflow = try #require(GitHubActionWorkflow.make(for: configuration, mode: .coordinator))
+		let yaml = workflow.yaml
+
+		#expect(yaml.contains("mode: coordinator"))
+		#expect(yaml.contains("job: 'local-release'"))
+		#expect(yaml.contains("checkout-metadata: 'false'"))
+		assertWorkflowInputIndentation(yaml, keys: [
+			"job:",
+			"checkout-metadata:",
+			"# min-cpu-count:"
 		])
 	}
 
