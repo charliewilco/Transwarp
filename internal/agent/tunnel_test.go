@@ -313,6 +313,39 @@ func TestRegistrationLoadDoesNotAcceptBuildsWhenTunnelIsNotReady(t *testing.T) {
 	}
 }
 
+func TestStatusSeparatesUserAvailabilityFromEffectiveCIAvailability(t *testing.T) {
+	agent := New(Config{
+		MachineID:     "machine-123",
+		MachineName:   "Mac Studio",
+		ListenAddress: "127.0.0.1:8188",
+		Tunnel: TunnelConfig{
+			Mode: "quick",
+		},
+	})
+	agent.tunnel.setStatus(TunnelStatus{
+		Mode:      "quick",
+		State:     "running",
+		Connected: true,
+		PublicURL: "https://example-name.trycloudflare.com",
+		Ready:     false,
+	})
+
+	request := httptest.NewRequest(http.MethodGet, "/status", nil)
+	response := httptest.NewRecorder()
+	agent.status(response, request)
+
+	var status StatusResponse
+	if err := json.NewDecoder(response.Body).Decode(&status); err != nil {
+		t.Fatal(err)
+	}
+	if !status.AcceptingBuilds {
+		t.Fatal("expected user availability to stay enabled")
+	}
+	if status.CIAcceptingBuilds {
+		t.Fatal("expected CI availability to be disabled until tunnel readiness")
+	}
+}
+
 func TestAgentPublicURLPrefersConfiguredValue(t *testing.T) {
 	agent := New(Config{
 		Tunnel: TunnelConfig{

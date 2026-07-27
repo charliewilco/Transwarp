@@ -10,20 +10,21 @@ import (
 )
 
 type StatusResponse struct {
-	MachineID        string                `json:"machine_id"`
-	MachineName      string                `json:"machine_name"`
-	ListenAddress    string                `json:"listen_address"`
-	TunnelMode       string                `json:"tunnel_mode"`
-	Tunnel           TunnelStatus          `json:"tunnel"`
-	Registration     RegistrationStatus    `json:"registration"`
-	Capabilities     Capabilities          `json:"capabilities"`
-	PublicURL        string                `json:"public_url,omitempty"`
-	AcceptingBuilds  bool                  `json:"accepting_builds"`
-	ActiveBuilds     int                   `json:"active_builds"`
-	QueuedBuilds     int                   `json:"queued_builds"`
-	QueuedBuildLimit int                   `json:"queued_build_limit"`
-	Jobs             []string              `json:"jobs"`
-	RecentBuilds     []BuildStatusResponse `json:"recent_builds"`
+	MachineID         string                `json:"machine_id"`
+	MachineName       string                `json:"machine_name"`
+	ListenAddress     string                `json:"listen_address"`
+	TunnelMode        string                `json:"tunnel_mode"`
+	Tunnel            TunnelStatus          `json:"tunnel"`
+	Registration      RegistrationStatus    `json:"registration"`
+	Capabilities      Capabilities          `json:"capabilities"`
+	PublicURL         string                `json:"public_url,omitempty"`
+	AcceptingBuilds   bool                  `json:"accepting_builds"`
+	CIAcceptingBuilds bool                  `json:"ci_accepting_builds"`
+	ActiveBuilds      int                   `json:"active_builds"`
+	QueuedBuilds      int                   `json:"queued_builds"`
+	QueuedBuildLimit  int                   `json:"queued_build_limit"`
+	Jobs              []string              `json:"jobs"`
+	RecentBuilds      []BuildStatusResponse `json:"recent_builds"`
 }
 
 type AvailabilityRequest struct {
@@ -46,22 +47,24 @@ func (agent *Agent) status(response http.ResponseWriter, request *http.Request) 
 		jobs = append(jobs, job.ID)
 	}
 	tunnelStatus := agent.tunnel.Status()
+	buildLoad := agent.buildLoad()
 
 	writeJSON(response, http.StatusOK, StatusResponse{
-		MachineID:        agent.config.MachineID,
-		MachineName:      agent.config.MachineName,
-		ListenAddress:    agent.config.ListenAddress,
-		TunnelMode:       agent.config.Tunnel.Mode,
-		Tunnel:           tunnelStatus,
-		Registration:     agent.registration(),
-		Capabilities:     agent.config.Capabilities,
-		PublicURL:        agent.publicURL(),
-		AcceptingBuilds:  agent.acceptingNewBuilds(),
-		ActiveBuilds:     agent.activeBuildCount(),
-		QueuedBuilds:     agent.queuedBuildCount(),
-		QueuedBuildLimit: agent.queuedBuildLimit(),
-		Jobs:             jobs,
-		RecentBuilds:     agent.recentBuilds(10),
+		MachineID:         agent.config.MachineID,
+		MachineName:       agent.config.MachineName,
+		ListenAddress:     agent.config.ListenAddress,
+		TunnelMode:        agent.config.Tunnel.Mode,
+		Tunnel:            tunnelStatus,
+		Registration:      agent.registration(),
+		Capabilities:      agent.config.Capabilities,
+		PublicURL:         agent.publicURL(),
+		AcceptingBuilds:   agent.acceptingNewBuilds(),
+		CIAcceptingBuilds: buildLoad.AcceptingBuilds,
+		ActiveBuilds:      buildLoad.ActiveBuilds,
+		QueuedBuilds:      buildLoad.QueuedBuilds,
+		QueuedBuildLimit:  buildLoad.QueuedBuildLimit,
+		Jobs:              jobs,
+		RecentBuilds:      agent.recentBuilds(10),
 	})
 }
 

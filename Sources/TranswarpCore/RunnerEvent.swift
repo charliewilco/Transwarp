@@ -47,6 +47,7 @@ public struct AgentStatus: Codable, Equatable, Sendable {
 	public var capabilities: RunnerCapabilities?
 	public var publicURL: URL?
 	public var acceptingBuilds: Bool?
+	public var ciAcceptingBuilds: Bool?
 	public var activeBuilds: Int
 	public var queuedBuilds: Int?
 	public var queuedBuildLimit: Int?
@@ -63,6 +64,7 @@ public struct AgentStatus: Codable, Equatable, Sendable {
 		case capabilities
 		case publicURL = "publicUrl"
 		case acceptingBuilds
+		case ciAcceptingBuilds
 		case activeBuilds
 		case queuedBuilds
 		case queuedBuildLimit
@@ -80,6 +82,7 @@ public struct AgentStatus: Codable, Equatable, Sendable {
 		capabilities: RunnerCapabilities? = nil,
 		publicURL: URL?,
 		acceptingBuilds: Bool? = nil,
+		ciAcceptingBuilds: Bool? = nil,
 		activeBuilds: Int,
 		queuedBuilds: Int? = nil,
 		queuedBuildLimit: Int? = nil,
@@ -95,6 +98,7 @@ public struct AgentStatus: Codable, Equatable, Sendable {
 		self.capabilities = capabilities
 		self.publicURL = publicURL
 		self.acceptingBuilds = acceptingBuilds
+		self.ciAcceptingBuilds = ciAcceptingBuilds
 		self.activeBuilds = activeBuilds
 		self.queuedBuilds = queuedBuilds
 		self.queuedBuildLimit = queuedBuildLimit
@@ -113,13 +117,17 @@ public struct AgentStatus: Codable, Equatable, Sendable {
 		acceptingBuilds ?? true
 	}
 
+	public var isCIAcceptingBuilds: Bool {
+		ciAcceptingBuilds ?? isAcceptingBuilds
+	}
+
 	public var isAvailableCITarget: Bool {
 		guard let registration,
 			  registration.configured,
 			  registration.state == "registered",
 			  registration.hasLiveLease(),
 			  tunnel.ready == true,
-			  isAcceptingBuilds,
+			  isCIAcceptingBuilds,
 			  !isQueueFull else {
 			return false
 		}
@@ -150,7 +158,7 @@ public struct AgentStatus: Codable, Equatable, Sendable {
 		if tunnel.ready != true {
 			return "Waiting for tunnel"
 		}
-		if !isAcceptingBuilds {
+		if !isCIAcceptingBuilds {
 			return "Paused"
 		}
 		if publicURL == nil && (tunnel.publicURL ?? "").isEmpty {

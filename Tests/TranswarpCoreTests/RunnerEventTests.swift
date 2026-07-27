@@ -197,6 +197,47 @@ struct RunnerEventTests {
 	}
 
 	@Test
+	func agentStatusUsesEffectiveCIAvailabilityWhenPresent() throws {
+		let data = Data("""
+		{
+			"machine_id": "machine-123",
+			"machine_name": "Mac",
+			"listen_address": "127.0.0.1:8188",
+			"tunnel_mode": "named",
+			"tunnel": {
+				"mode": "named",
+				"state": "running",
+				"public_url": "https://transwarp.example.com",
+				"connected": true,
+				"ready": true
+			},
+			"registration": {
+				"configured": true,
+				"state": "registered",
+				"lease_expires_at": "2999-07-26T03:27:50Z"
+			},
+			"public_url": "https://transwarp.example.com",
+			"accepting_builds": true,
+			"ci_accepting_builds": false,
+			"active_builds": 0,
+			"queued_builds": 0,
+			"queued_build_limit": 25,
+			"jobs": ["xcode-debug"],
+			"recent_builds": []
+		}
+		""".utf8)
+		let decoder = JSONDecoder()
+		decoder.keyDecodingStrategy = .convertFromSnakeCase
+
+		let status = try decoder.decode(AgentStatus.self, from: data)
+
+		#expect(status.isAcceptingBuilds)
+		#expect(!status.isCIAcceptingBuilds)
+		#expect(!status.isAvailableCITarget)
+		#expect(status.ciTargetSummary == "Paused")
+	}
+
+	@Test
 	func availabilityUpdatePayloadUsesRunnerJSONKey() throws {
 		let payload = AvailabilityUpdatePayload(acceptingBuilds: false)
 		let data = try JSONEncoder().encode(payload)
