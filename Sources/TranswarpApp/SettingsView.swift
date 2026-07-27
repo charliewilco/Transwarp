@@ -116,6 +116,27 @@ struct SettingsView: View {
 				if !draft.additionalJobs.isEmpty {
 					LabeledContent("Additional Jobs", value: "\(draft.additionalJobs.count)")
 						.help("Additional JSON-defined jobs are preserved when settings are saved.")
+					ForEach(draft.additionalJobs) { job in
+						HStack {
+							VStack(alignment: .leading, spacing: 3) {
+								Text(job.id)
+									.font(.subheadline.weight(.semibold))
+								Text(job.command)
+									.font(.caption.monospaced())
+									.foregroundStyle(.secondary)
+									.lineLimit(1)
+									.truncationMode(.middle)
+							}
+							Spacer()
+							Button {
+								promoteAdditionalJob(job)
+							} label: {
+								Label("Make Primary", systemImage: "arrow.up.circle")
+							}
+							.labelStyle(.iconOnly)
+							.help("Make \(job.id) editable as the primary job")
+						}
+					}
 				}
 				TextField("Job ID", text: $draft.jobId)
 				TextField("Label", text: $draft.jobLabel)
@@ -214,6 +235,15 @@ struct SettingsView: View {
 	private func applyCoordinatorBaseURL() {
 		do {
 			try draft.applyCoordinatorBaseURL(coordinatorBaseURL)
+			draftError = nil
+		} catch {
+			draftError = error.localizedDescription
+		}
+	}
+
+	private func promoteAdditionalJob(_ job: BuildJob) {
+		do {
+			try draft.promoteAdditionalJob(id: job.id)
 			draftError = nil
 		} catch {
 			draftError = error.localizedDescription

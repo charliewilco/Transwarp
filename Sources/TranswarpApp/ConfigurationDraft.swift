@@ -68,19 +68,7 @@ struct ConfigurationDraft: Equatable {
 		additionalJobs = Array(jobs.dropFirst())
 
 		if let job = jobs.first {
-			jobId = job.id
-			jobLabel = job.label
-			jobWorkingDirectory = job.workingDirectory
-			jobCheckout = job.checkout
-			jobAllowedRepositories = job.allowedRepositories.joined(separator: "\n")
-			jobCheckoutAuthorizationHeader = job.checkoutAuthorizationHeader
-			jobCommand = job.command
-			jobArguments = job.arguments.joined(separator: "\n")
-			let partitionedEnvironment = Self.partitionEnvironment(job.environment)
-			jobEnvironment = Self.environmentText(partitionedEnvironment.plain)
-			jobSecretEnvironment = Self.environmentText(partitionedEnvironment.secret)
-			jobRedactedEnvironmentKeys = job.redactedEnvironmentKeys.joined(separator: "\n")
-			jobTimeoutSeconds = job.timeoutSeconds
+			applyPrimaryJob(job)
 		}
 	}
 
@@ -103,6 +91,16 @@ struct ConfigurationDraft: Equatable {
 		ciDeregistrationURL = base.appending(path: "transwarp").appending(path: "deregister").absoluteString
 	}
 
+	mutating func promoteAdditionalJob(id: String) throws {
+		guard let index = additionalJobs.firstIndex(where: { $0.id == id }) else {
+			throw ConfigurationDraftError("Additional job \(id) is not configured.")
+		}
+		let currentPrimaryJob = try primaryJob()
+		let promotedJob = additionalJobs.remove(at: index)
+		additionalJobs.insert(currentPrimaryJob, at: index)
+		applyPrimaryJob(promotedJob)
+	}
+
 	static func inferredCoordinatorBaseURL(registrationURL: String) -> String {
 		guard let url = URL(string: registrationURL), url.path == "/transwarp/register" else {
 			return ""
@@ -115,24 +113,7 @@ struct ConfigurationDraft: Equatable {
 	}
 
 	func makeConfiguration() throws -> AgentConfiguration {
-		let plainEnvironment = try environment(jobEnvironment, field: "Environment")
-		let secretEnvironment = try environment(jobSecretEnvironment, field: "Secret environment")
-		let mergedEnvironment = plainEnvironment.merging(secretEnvironment) { _, secret in secret }
-		let redactedKeys = unique(lines(jobRedactedEnvironmentKeys) + Array(secretEnvironment.keys))
-
-		let primaryJob = BuildJob(
-			id: trimmed(jobId),
-			label: trimmed(jobLabel),
-			workingDirectory: trimmed(jobWorkingDirectory),
-			checkout: jobCheckout,
-			allowedRepositories: lines(jobAllowedRepositories),
-			checkoutAuthorizationHeader: jobCheckoutAuthorizationHeader,
-			command: trimmed(jobCommand),
-			arguments: lines(jobArguments),
-			environment: mergedEnvironment,
-			redactedEnvironmentKeys: redactedKeys,
-			timeoutSeconds: jobTimeoutSeconds
-		)
+		let primaryJob = try primaryJob()
 
 		let configuration = AgentConfiguration(
 			listenAddress: trimmed(listenAddress),
@@ -163,6 +144,43 @@ struct ConfigurationDraft: Equatable {
 		)
 		try AgentConfigurationValidator.validate(configuration, checkFileSystem: false)
 		return configuration
+	}
+
+	private func primaryJob() throws -> BuildJob {
+		let plainEnvironment = try environment(jobEnvironment, field: "Environment")
+		let secretEnvironment = try environment(jobSecretEnvironment, field: "Secret environment")
+		let mergedEnvironment = plainEnvironment.merging(secretEnvironment) { _, secret in secret }
+		let redactedKeys = unique(lines(jobRedactedEnvironmentKeys) + Array(secretEnvironment.keys))
+
+		return BuildJob(
+			id: trimmed(jobId),
+			label: trimmed(jobLabel),
+			workingDirectory: trimmed(jobWorkingDirectory),
+			checkout: jobCheckout,
+			allowedRepositories: lines(jobAllowedRepositories),
+			checkoutAuthorizationHeader: jobCheckoutAuthorizationHeader,
+			command: trimmed(jobCommand),
+			arguments: lines(jobArguments),
+			environment: mergedEnvironment,
+			redactedEnvironmentKeys: redactedKeys,
+			timeoutSeconds: jobTimeoutSeconds
+		)
+	}
+
+	private mutating func applyPrimaryJob(_ job: BuildJob) {
+		jobId = job.id
+		jobLabel = job.label
+		jobWorkingDirectory = job.workingDirectory
+		jobCheckout = job.checkout
+		jobAllowedRepositories = job.allowedRepositories.joined(separator: "\n")
+		jobCheckoutAuthorizationHeader = job.checkoutAuthorizationHeader
+		jobCommand = job.command
+		jobArguments = job.arguments.joined(separator: "\n")
+		let partitionedEnvironment = Self.partitionEnvironment(job.environment)
+		jobEnvironment = Self.environmentText(partitionedEnvironment.plain)
+		jobSecretEnvironment = Self.environmentText(partitionedEnvironment.secret)
+		jobRedactedEnvironmentKeys = job.redactedEnvironmentKeys.joined(separator: "\n")
+		jobTimeoutSeconds = job.timeoutSeconds
 	}
 
 	private func optionalURL(_ value: String, field: String) throws -> URL? {

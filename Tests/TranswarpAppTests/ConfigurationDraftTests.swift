@@ -358,4 +358,83 @@ struct ConfigurationDraftTests {
 		#expect(saved.jobs[0].label == "Primary Edited")
 		#expect(saved.jobs[1] == configuration.jobs[1])
 	}
+
+	@Test
+	func promoteAdditionalJobMakesItEditableAsPrimary() throws {
+		let configuration = AgentConfiguration(
+			listenAddress: "127.0.0.1:8188",
+			machineId: "machine-123",
+			machineName: "Mac",
+			sharedToken: "token",
+			tunnel: TunnelConfiguration(mode: .off),
+			jobs: [
+				BuildJob(
+					id: "debug",
+					label: "Debug",
+					workingDirectory: "/tmp/debug",
+					command: "/usr/bin/xcodebuild",
+					arguments: ["-scheme", "App", "build"],
+					timeoutSeconds: 600
+				),
+				BuildJob(
+					id: "release",
+					label: "Release",
+					workingDirectory: "/tmp/release",
+					command: "/usr/bin/xcodebuild",
+					arguments: ["-scheme", "App", "archive"],
+					environment: ["SIGN_IDENTITY": "Developer ID Application: Example (TEAMID)"],
+					timeoutSeconds: 3600
+				)
+			]
+		)
+
+		var draft = ConfigurationDraft(configuration: configuration)
+		try draft.promoteAdditionalJob(id: "release")
+
+		#expect(draft.jobId == "release")
+		#expect(draft.jobWorkingDirectory == "/tmp/release")
+		#expect(draft.jobArguments == "-scheme\nApp\narchive")
+		#expect(draft.jobSecretEnvironment == "SIGN_IDENTITY=Developer ID Application: Example (TEAMID)")
+		#expect(draft.additionalJobs.map(\.id) == ["debug"])
+
+		let saved = try draft.makeConfiguration()
+		#expect(saved.jobs.map(\.id) == ["release", "debug"])
+		#expect(saved.jobs[1].workingDirectory == "/tmp/debug")
+	}
+
+	@Test
+	func promoteAdditionalJobRejectsInvalidCurrentPrimaryWithoutSwapping() {
+		let configuration = AgentConfiguration(
+			listenAddress: "127.0.0.1:8188",
+			machineId: "machine-123",
+			machineName: "Mac",
+			sharedToken: "token",
+			tunnel: TunnelConfiguration(mode: .off),
+			jobs: [
+				BuildJob(
+					id: "debug",
+					label: "Debug",
+					workingDirectory: "/tmp/debug",
+					command: "/usr/bin/env",
+					timeoutSeconds: 60
+				),
+				BuildJob(
+					id: "release",
+					label: "Release",
+					workingDirectory: "/tmp/release",
+					command: "/usr/bin/xcodebuild",
+					timeoutSeconds: 3600
+				)
+			]
+		)
+
+		var draft = ConfigurationDraft(configuration: configuration)
+		draft.jobEnvironment = "BROKEN"
+
+		#expect(throws: ConfigurationDraftError.self) {
+			try draft.promoteAdditionalJob(id: "release")
+		}
+		#expect(draft.jobId == "debug")
+		#expect(draft.additionalJobs.map(\.id) == ["release"])
+	}
 }
