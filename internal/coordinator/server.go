@@ -982,6 +982,7 @@ func (server *Server) activeTargets() []Target {
 	for id, target := range server.targets {
 		if !target.LeaseExpiresAt.IsZero() && target.LeaseExpiresAt.Before(now) {
 			delete(server.targets, id)
+			server.releaseUnacceptedDispatchesForTargetLocked(id)
 			changed = true
 			continue
 		}

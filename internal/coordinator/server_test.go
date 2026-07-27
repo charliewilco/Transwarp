@@ -1732,6 +1732,107 @@ func TestListTargetsExpiresLeases(t *testing.T) {
 	}
 }
 
+func TestListTargetsReleasesUnacceptedDispatchForExpiredLease(t *testing.T) {
+	server := newTestServer(t, Options{
+		Token:          "coord-token",
+		TranswarpToken: "runner-token",
+		PublicURL:      "https://coordinator.test",
+	})
+	testServer := httptest.NewServer(server.Handler())
+	defer testServer.Close()
+
+	registerTarget(t, testServer.URL, "coord-token", Target{
+		MachineID:        "machine-123",
+		MachineName:      "Mac Studio",
+		PublicURL:        "https://transwarp.example.com",
+		QueuedBuildLimit: 1,
+		Jobs:             []string{"xcode-debug"},
+		LeaseExpiresAt:   time.Now().Add(time.Minute),
+	})
+	activateDispatch(server, DispatchRequest{
+		MachineID: "machine-123",
+		JobID:     "xcode-debug",
+		RequestID: "run-123",
+	})
+	if _, err := server.reserveActiveDispatchTarget("run-123", "machine-123"); err != nil {
+		t.Fatalf("reserveActiveDispatchTarget returned error: %v", err)
+	}
+	server.mu.Lock()
+	target := server.targets["machine-123"]
+	target.LeaseExpiresAt = time.Now().Add(-time.Second)
+	server.targets["machine-123"] = target
+	server.mu.Unlock()
+
+	targets := getTargets(t, testServer.URL, "coord-token")
+	if len(targets) != 0 {
+		t.Fatalf("expected expired target to be removed, got %d", len(targets))
+	}
+	server.mu.Lock()
+	_, active := server.active["run-123"]
+	reservations := server.targetReservations["machine-123"]
+	server.mu.Unlock()
+	if active {
+		t.Fatalf("unaccepted active dispatch remained after target lease expiry: %+v", server.active)
+	}
+	if reservations != 0 {
+		t.Fatalf("target reservation remained after target lease expiry: %d", reservations)
+	}
+}
+
+func TestListTargetsPreservesAcceptedDispatchForExpiredLeaseResultCallback(t *testing.T) {
+	server := newTestServer(t, Options{
+		Token:          "coord-token",
+		TranswarpToken: "runner-token",
+		PublicURL:      "https://coordinator.test",
+	})
+	testServer := httptest.NewServer(server.Handler())
+	defer testServer.Close()
+
+	registerTarget(t, testServer.URL, "coord-token", Target{
+		MachineID:      "machine-123",
+		MachineName:    "Mac Studio",
+		PublicURL:      "https://runner.example.com",
+		Jobs:           []string{"xcode-debug"},
+		LeaseExpiresAt: time.Now().Add(time.Minute),
+	})
+	activateDispatch(server, DispatchRequest{
+		MachineID: "machine-123",
+		JobID:     "xcode-debug",
+		RequestID: "run-123",
+	})
+	if _, err := server.reserveActiveDispatchTarget("run-123", "machine-123"); err != nil {
+		t.Fatalf("reserveActiveDispatchTarget returned error: %v", err)
+	}
+	if err := server.markActiveDispatchBuild("run-123", "machine-123", "https://runner.example.com", "build-123"); err != nil {
+		t.Fatal(err)
+	}
+	server.mu.Lock()
+	target := server.targets["machine-123"]
+	target.LeaseExpiresAt = time.Now().Add(-time.Second)
+	server.targets["machine-123"] = target
+	server.mu.Unlock()
+
+	targets := getTargets(t, testServer.URL, "coord-token")
+	if len(targets) != 0 {
+		t.Fatalf("expected expired target to be removed, got %d", len(targets))
+	}
+	result := recordResult(t, testServer.URL, "coord-token", BuildResult{
+		BuildID:   "build-123",
+		JobID:     "xcode-debug",
+		RequestID: "run-123",
+		MachineID: "machine-123",
+		Machine:   "Mac Studio",
+		Status:    "passed",
+		ExitCode:  0,
+		PublicURL: "https://runner.example.com",
+	})
+	defer result.Body.Close()
+	if result.StatusCode != http.StatusAccepted {
+		data, _ := io.ReadAll(result.Body)
+		t.Fatalf("unexpected result status after target lease expiry: %s body: %s", result.Status, string(data))
+	}
+}
+
 func TestRecordAndListResult(t *testing.T) {
 	server := newTestServer(t, Options{
 		Token:          "coord-token",
