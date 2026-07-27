@@ -199,6 +199,10 @@ func (agent *Agent) buildStatus(response http.ResponseWriter, request *http.Requ
 	}
 	run, ok := agent.build(buildID)
 	if !ok {
+		if status, ok := ledgerBuildStatus(buildID); ok {
+			writeJSON(response, http.StatusOK, status)
+			return
+		}
 		writeJSON(response, http.StatusNotFound, map[string]string{"error": "unknown build_id"})
 		return
 	}
@@ -886,6 +890,37 @@ func ledgerRecentBuilds(limit int) []BuildStatusResponse {
 	if limit == 0 {
 		return nil
 	}
+	records := ledgerRecords()
+	sort.SliceStable(records, func(i, j int) bool {
+		left := ledgerRecordSortTime(records[i])
+		right := ledgerRecordSortTime(records[j])
+		if left.Equal(right) {
+			return records[i].BuildID < records[j].BuildID
+		}
+		return left.After(right)
+	})
+	if limit > 0 && len(records) > limit {
+		records = records[:limit]
+	}
+
+	statuses := make([]BuildStatusResponse, 0, len(records))
+	for _, record := range records {
+		statuses = append(statuses, buildStatusFromLedger(record))
+	}
+	return statuses
+}
+
+func ledgerBuildStatus(buildID string) (BuildStatusResponse, bool) {
+	records := ledgerRecords()
+	for _, record := range records {
+		if record.BuildID == buildID {
+			return buildStatusFromLedger(record), true
+		}
+	}
+	return BuildStatusResponse{}, false
+}
+
+func ledgerRecords() []LedgerRecord {
 	path, err := ledgerPath()
 	if err != nil {
 		return nil
@@ -913,23 +948,7 @@ func ledgerRecentBuilds(limit int) []BuildStatusResponse {
 	for _, record := range recordsByBuildID {
 		records = append(records, record)
 	}
-	sort.SliceStable(records, func(i, j int) bool {
-		left := ledgerRecordSortTime(records[i])
-		right := ledgerRecordSortTime(records[j])
-		if left.Equal(right) {
-			return records[i].BuildID < records[j].BuildID
-		}
-		return left.After(right)
-	})
-	if limit > 0 && len(records) > limit {
-		records = records[:limit]
-	}
-
-	statuses := make([]BuildStatusResponse, 0, len(records))
-	for _, record := range records {
-		statuses = append(statuses, buildStatusFromLedger(record))
-	}
-	return statuses
+	return records
 }
 
 func validLedgerStatusRecord(record LedgerRecord) bool {

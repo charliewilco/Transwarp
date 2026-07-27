@@ -692,6 +692,82 @@ func TestRecentBuildsIncludesTerminalLedgerHistory(t *testing.T) {
 	}
 }
 
+func TestBuildStatusFindsTerminalLedgerHistory(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	agent := New(Config{})
+	started := time.Date(2026, 7, 27, 10, 0, 0, 0, time.UTC)
+	record := LedgerRecord{
+		BuildID:      "build-restarted",
+		JobID:        "xcode-debug",
+		RequestID:    "request-123",
+		RepoURL:      "https://github.com/example/app.git",
+		Ref:          "refs/heads/main",
+		Commit:       "abc123",
+		Workspace:    "/Users/charlie/private/transwarp-workspace",
+		StartedAt:    started,
+		EndedAt:      started.Add(2 * time.Second),
+		ExitCode:     65,
+		Error:        "xcodebuild exited with 65",
+		ReportStatus: "pending",
+	}
+	agent.writeLedger(record)
+	record.ReportStatus = "failed"
+	record.ReportError = "report endpoint returned 500 Internal Server Error"
+	agent.writeLedger(record)
+
+	request := httptest.NewRequest(http.MethodGet, "/v1/builds/build-restarted", nil)
+	request.SetPathValue("buildID", "build-restarted")
+	response := httptest.NewRecorder()
+	agent.buildStatus(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body: %s", response.Code, response.Body.String())
+	}
+	var status BuildStatusResponse
+	if err := json.NewDecoder(response.Body).Decode(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status.BuildID != "build-restarted" || status.Status != "failed" {
+		t.Fatalf("unexpected ledger status: %+v", status)
+	}
+	if status.ReportStatus != "failed" || status.ReportError != "report endpoint returned 500 Internal Server Error" {
+		t.Fatalf("expected latest report status, got %+v", status)
+	}
+	if status.Result == nil || status.Result.ExitCode != 65 || status.Result.Error != "xcodebuild exited with 65" {
+		t.Fatalf("expected terminal result, got %+v", status.Result)
+	}
+	if status.Result.RepoURL != "https://github.com/example/app.git" || status.Result.Ref != "refs/heads/main" || status.Result.Commit != "abc123" {
+		t.Fatalf("ledger status lost CI metadata: %+v", status.Result)
+	}
+	if strings.Contains(response.Body.String(), "transwarp-workspace") || strings.Contains(response.Body.String(), "Workspace") {
+		t.Fatalf("ledger status leaked local workspace path: %s", response.Body.String())
+	}
+}
+
+func TestBuildStatusSkipsMalformedLedgerHistory(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	agent := New(Config{})
+	path, err := ledgerPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(`{"build_id":"build-bad","job_id":"xcode-debug","request_id":"request-123","started_at":"2026-07-27T10:00:00Z","ended_at":"2026-07-27T10:00:01Z","exit_code":0,"report_status":"maybe"}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/v1/builds/build-bad", nil)
+	request.SetPathValue("buildID", "build-bad")
+	response := httptest.NewRecorder()
+	agent.buildStatus(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d body: %s", response.Code, response.Body.String())
+	}
+}
+
 func TestRecentBuildsUsesLatestLedgerReportStatus(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	agent := New(Config{})
