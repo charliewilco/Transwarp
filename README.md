@@ -6,7 +6,8 @@ The target is modern Apple Silicon Macs. The app is SwiftUI and package-first, w
 
 ## What Works
 
-- Native macOS app for configuring and running a local build target.
+- Tiny native macOS daily-operation window for runner status, Start/Stop, current or latest build, actionable errors, and collapsible activity.
+- Settings for setup, CI workflow generation/readiness, diagnostics inputs, and advanced runner configuration.
 - Go runner with authenticated local HTTP, allowlisted jobs, checkout support, queueing, cancellation, log streaming, and terminal pass/fail results.
 - Cloudflare quick and named tunnel modes through `cloudflared`.
 - Registration, heartbeat, deregistration, and paused/available state for CI target discovery.
@@ -49,6 +50,8 @@ On first launch, Transwarp creates:
 
 Use Settings to configure the machine identity, runner token, Cloudflare Tunnel, CI registration URLs, job recipes, and local job environment.
 
+The main window intentionally stays compact at 440x240. It is for daily operation: see whether the Mac needs setup, is stopped, available, paused, queued, running, passed, failed, or errored; start or stop the runner; use the More menu for test builds, pause/resume, reload, reveal config, and public endpoint diagnosis; expand Activity when you need recent runner events. Workflow generation and readiness live in Settings, not in the main window.
+
 ## Local Checks
 
 Run the main local gate and focused checks:
@@ -79,7 +82,7 @@ Quick tunnels are useful for demos and diagnostics, but they are not a release p
 
 ## GitHub Actions
 
-The repository includes a composite action in `action.yml`. CI jobs set up Go, then use direct mode against a runner URL or coordinator mode against a CI-side coordinator:
+The repository includes a composite action in `action.yml`. Settings can copy self-hosted, direct, coordinator, and release-evidence workflow YAML plus the required GitHub secret names and the safe local values Transwarp can know. CI jobs set up Go, then use direct mode against a runner URL or coordinator mode against a CI-side coordinator:
 
 ```yaml
 - uses: actions/setup-go@v5

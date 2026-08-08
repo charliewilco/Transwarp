@@ -3,7 +3,7 @@ import Darwin
 import TranswarpCore
 
 @MainActor
-final class RunnerProcess {
+final class RunnerProcess: RunnerControlling {
 	enum Status: Equatable {
 		case stopped
 		case starting
@@ -47,6 +47,7 @@ final class RunnerProcess {
 	var onStatusChange: ((Status) -> Void)?
 
 	private let runnerExecutableOverride: URL?
+	private let resolveSecret: (String) throws -> String
 	private let terminateGraceDuration: Duration
 	private let killGraceDuration: Duration
 	private var process: Process?
@@ -56,10 +57,12 @@ final class RunnerProcess {
 
 	init(
 		runnerExecutable: URL? = nil,
+		resolveSecret: @escaping (String) throws -> String = KeychainSecretStore.resolve(_:),
 		terminateGraceDuration: Duration = .seconds(5),
 		killGraceDuration: Duration = .seconds(5)
 	) {
 		runnerExecutableOverride = runnerExecutable
+		self.resolveSecret = resolveSecret
 		self.terminateGraceDuration = terminateGraceDuration
 		self.killGraceDuration = killGraceDuration
 	}
@@ -72,7 +75,10 @@ final class RunnerProcess {
 		onStatusChange?(.starting)
 
 		let executable = try runnerExecutableURL()
-		let runtimeConfiguration = try Self.runtimeConfigurationData(configurationPath: configurationPath)
+		let runtimeConfiguration = try Self.runtimeConfigurationData(
+			configurationPath: configurationPath,
+			resolveSecret: resolveSecret
+		)
 		let child = Process()
 		let pipe = Pipe()
 		let input = Pipe()
@@ -287,29 +293,35 @@ final class RunnerProcess {
 		return environment
 	}
 
-	private nonisolated static func runtimeConfigurationData(configurationPath: URL) throws -> Data {
+	private nonisolated static func runtimeConfigurationData(
+		configurationPath: URL,
+		resolveSecret: (String) throws -> String
+	) throws -> Data {
 		let configuration = try AgentConfigurationStore.load(from: configurationPath)
-		let runtimeConfiguration = try resolvedRuntimeConfiguration(configuration)
+		let runtimeConfiguration = try resolvedRuntimeConfiguration(configuration, resolveSecret: resolveSecret)
 		return try AgentConfigurationStore.encode(runtimeConfiguration)
 	}
 
-	nonisolated static func resolvedRuntimeConfiguration(_ configuration: AgentConfiguration) throws -> AgentConfiguration {
+	nonisolated static func resolvedRuntimeConfiguration(
+		_ configuration: AgentConfiguration,
+		resolveSecret: (String) throws -> String = KeychainSecretStore.resolve(_:)
+	) throws -> AgentConfiguration {
 		var resolved = configuration
-		resolved.sharedToken = try KeychainSecretStore.resolve(resolved.sharedToken)
-		resolved.registrationToken = try KeychainSecretStore.resolve(resolved.registrationToken)
-		resolved.ciAccessClientSecret = try KeychainSecretStore.resolve(resolved.ciAccessClientSecret)
-		resolved.runnerAccessClientSecret = try KeychainSecretStore.resolve(resolved.runnerAccessClientSecret)
-		resolved.tunnel.token = try KeychainSecretStore.resolve(resolved.tunnel.token)
+		resolved.sharedToken = try resolveSecret(resolved.sharedToken)
+		resolved.registrationToken = try resolveSecret(resolved.registrationToken)
+		resolved.ciAccessClientSecret = try resolveSecret(resolved.ciAccessClientSecret)
+		resolved.runnerAccessClientSecret = try resolveSecret(resolved.runnerAccessClientSecret)
+		resolved.tunnel.token = try resolveSecret(resolved.tunnel.token)
 		for index in resolved.redactedValues.indices {
-			resolved.redactedValues[index] = try KeychainSecretStore.resolve(resolved.redactedValues[index])
+			resolved.redactedValues[index] = try resolveSecret(resolved.redactedValues[index])
 		}
 
 		for jobIndex in resolved.jobs.indices {
-			resolved.jobs[jobIndex].checkoutAuthorizationHeader = try KeychainSecretStore.resolve(
+			resolved.jobs[jobIndex].checkoutAuthorizationHeader = try resolveSecret(
 				resolved.jobs[jobIndex].checkoutAuthorizationHeader
 			)
 			for (key, value) in resolved.jobs[jobIndex].environment {
-				resolved.jobs[jobIndex].environment[key] = try KeychainSecretStore.resolve(value)
+				resolved.jobs[jobIndex].environment[key] = try resolveSecret(value)
 			}
 		}
 

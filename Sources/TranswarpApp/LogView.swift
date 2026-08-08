@@ -56,5 +56,5 @@ struct LogView: View {
 
 #Preview {
 	LogView()
-		.environment(AppModel())
+		.environment(AppModel.previewExpandedActivity)
 }
