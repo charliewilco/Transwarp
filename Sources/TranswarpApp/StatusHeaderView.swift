@@ -94,10 +94,13 @@ struct StatusHeaderView: View {
 		if !model.configurationIssues.isEmpty {
 			return "Needs Setup"
 		}
+		if case .stoppedWithFailure = model.status {
+			return "Runner Failed"
+		}
 		if model.agentStatus?.isAvailableCITarget == true {
 			return "Available"
 		}
-		if model.isRunning && !model.isAcceptingBuilds {
+		if model.isRunning && model.agentStatus?.isCIAcceptingBuilds == false {
 			return "Paused"
 		}
 		switch model.status {
@@ -116,13 +119,13 @@ struct StatusHeaderView: View {
 
 	private var statusDetail: String {
 		if !model.configurationIssues.isEmpty {
-			return "Open Settings to finish configuration"
+			return "Open Settings"
 		}
 		if model.activeBuildCount == 1 {
-			return "1 build in progress"
+			return "1 build running"
 		}
 		if model.activeBuildCount > 1 {
-			return "\(model.activeBuildCount) builds in progress"
+			return "\(model.activeBuildCount) builds running"
 		}
 		if model.queuedBuildCount == 1 {
 			return "1 build queued"
@@ -130,33 +133,35 @@ struct StatusHeaderView: View {
 		if model.queuedBuildCount > 1 {
 			return "\(model.queuedBuildCount) builds queued"
 		}
-		if model.agentStatus?.isAvailableCITarget == true {
-			return "\(machineName) is accepting CI builds"
+		if case let .stoppedWithFailure(code) = model.status {
+			return "Exit code \(code)"
 		}
-		if model.isRunning && !model.isAcceptingBuilds {
-			return "New CI builds are paused"
+		if model.agentStatus?.isAvailableCITarget == true {
+			return "Accepting CI builds"
+		}
+		if model.isRunning && model.agentStatus?.isCIAcceptingBuilds == false {
+			return "New CI builds paused"
 		}
 		switch model.status {
 		case .stopped:
-			return model.configuration == nil ? "No configuration loaded" : "\(machineName) is offline"
+			return model.configuration == nil ? "No configuration" : "Offline"
 		case .starting:
-			return "Launching the local runner"
+			return "Launching runner"
 		case .running(let pid):
-			return "Local runner is active, PID \(pid)"
+			return "Runner active, PID \(pid)"
 		case .stopping:
-			return "Stopping the local runner"
+			return "Stopping runner"
 		case .stoppedWithFailure(let code):
-			return "Runner exited with code \(code)"
+			return "Exit code \(code)"
 		}
-	}
-
-	private var machineName: String {
-		model.configuration?.machineName ?? "This Mac"
 	}
 
 	private var statusIcon: String {
 		if !model.configurationIssues.isEmpty {
 			return "exclamationmark.triangle.fill"
+		}
+		if case .stoppedWithFailure = model.status {
+			return "xmark.circle.fill"
 		}
 		if model.agentStatus?.isAvailableCITarget == true {
 			return "checkmark.circle.fill"
@@ -170,6 +175,9 @@ struct StatusHeaderView: View {
 	private var statusColor: Color {
 		if !model.configurationIssues.isEmpty {
 			return .orange
+		}
+		if case .stoppedWithFailure = model.status {
+			return .red
 		}
 		if model.agentStatus?.isAvailableCITarget == true {
 			return .green
