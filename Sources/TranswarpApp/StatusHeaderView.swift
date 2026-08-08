@@ -4,53 +4,161 @@ struct StatusHeaderView: View {
 	@Environment(AppModel.self) private var model
 
 	var body: some View {
-		HStack(spacing: 14) {
-			VStack(alignment: .leading, spacing: 3) {
-				Text("Transwarp")
-					.font(.title3.weight(.semibold))
-				Label(model.status.label, systemImage: statusIcon)
-					.font(.subheadline)
-					.foregroundStyle(statusColor)
+		HStack(spacing: 12) {
+			Image(systemName: statusIcon)
+				.font(.title2)
+				.foregroundStyle(statusColor)
+				.frame(width: 24)
+
+			VStack(alignment: .leading, spacing: 2) {
+				Text(statusTitle)
+					.font(.headline)
+				Text(statusDetail)
+					.font(.caption)
+					.foregroundStyle(.secondary)
+					.lineLimit(1)
+					.truncationMode(.middle)
 			}
 
 			Spacer()
 
 			SettingsLink {
-				Label("Settings", systemImage: "slider.horizontal.3")
+				Label("Settings", systemImage: "gearshape")
 			}
+			.labelStyle(.iconOnly)
+			.help("Settings")
 
-			Button {
-				model.revealConfiguration()
-			} label: {
-				Label("Reveal", systemImage: "folder")
-			}
-
-			Button {
-				Task {
-					await model.runTestBuild()
+			Menu {
+				Button {
+					Task {
+						await model.runTestBuild()
+					}
+				} label: {
+					Label(model.testBuildInFlight ? "Testing" : "Run Test Build", systemImage: "hammer")
 				}
-			} label: {
-				Label(model.testBuildInFlight ? "Testing" : "Run Test Build", systemImage: "hammer")
-			}
-			.disabled(!model.canRunTestBuild)
-			.help(model.testBuildHelp)
+				.disabled(!model.canRunTestBuild)
 
-			Button {
-				model.canStop ? model.stop() : model.start()
+				Button {
+					Task {
+						await model.setAcceptingBuilds(!model.isAcceptingBuilds)
+					}
+				} label: {
+					Label(
+						model.isAcceptingBuilds ? "Pause New Builds" : "Resume New Builds",
+						systemImage: model.isAcceptingBuilds ? "pause.circle" : "play.circle"
+					)
+				}
+				.disabled(!model.canToggleCIAvailability)
+
+				Divider()
+
+				Button {
+					model.reloadConfiguration()
+				} label: {
+					Label("Reload Configuration", systemImage: "arrow.clockwise")
+				}
+
+				Button {
+					model.revealConfiguration()
+				} label: {
+					Label("Reveal Configuration", systemImage: "folder")
+				}
+
+				Button {
+					Task {
+						await model.diagnosePublicEndpoint()
+					}
+				} label: {
+					Label(
+						model.publicEndpointDiagnosisInFlight ? "Diagnosing Endpoint" : "Diagnose Endpoint",
+						systemImage: "network"
+					)
+				}
+				.disabled(!model.canDiagnosePublicEndpoint)
 			} label: {
-				Label(model.canStop ? "Stop" : "Start", systemImage: model.canStop ? "stop.fill" : "play.fill")
+				Label("More", systemImage: "ellipsis.circle")
+			}
+			.menuStyle(.borderlessButton)
+
+			Button(model.canStop ? "Stop" : "Start") {
+				model.canStop ? model.stop() : model.start()
 			}
 			.keyboardShortcut(.return, modifiers: [.command])
 			.buttonStyle(.borderedProminent)
 			.disabled(!model.canStop && !model.canStart)
 			.help(model.canStart || model.canStop ? "" : model.configurationIssues.first ?? "Configuration is not ready")
 		}
-		.padding(.horizontal, 24)
-		.padding(.vertical, 16)
+	}
+
+	private var statusTitle: String {
+		if !model.configurationIssues.isEmpty {
+			return "Needs Setup"
+		}
+		if model.agentStatus?.isAvailableCITarget == true {
+			return "Available"
+		}
+		if model.isRunning && !model.isAcceptingBuilds {
+			return "Paused"
+		}
+		switch model.status {
+		case .stopped:
+			return "Stopped"
+		case .starting:
+			return "Starting"
+		case .running:
+			return "Running"
+		case .stopping:
+			return "Stopping"
+		case .stoppedWithFailure:
+			return "Runner Failed"
+		}
+	}
+
+	private var statusDetail: String {
+		if !model.configurationIssues.isEmpty {
+			return "Open Settings to finish configuration"
+		}
+		if model.activeBuildCount == 1 {
+			return "1 build in progress"
+		}
+		if model.activeBuildCount > 1 {
+			return "\(model.activeBuildCount) builds in progress"
+		}
+		if model.queuedBuildCount == 1 {
+			return "1 build queued"
+		}
+		if model.queuedBuildCount > 1 {
+			return "\(model.queuedBuildCount) builds queued"
+		}
+		if model.agentStatus?.isAvailableCITarget == true {
+			return "\(machineName) is accepting CI builds"
+		}
+		if model.isRunning && !model.isAcceptingBuilds {
+			return "New CI builds are paused"
+		}
+		switch model.status {
+		case .stopped:
+			return model.configuration == nil ? "No configuration loaded" : "\(machineName) is offline"
+		case .starting:
+			return "Launching the local runner"
+		case .running(let pid):
+			return "Local runner is active, PID \(pid)"
+		case .stopping:
+			return "Stopping the local runner"
+		case .stoppedWithFailure(let code):
+			return "Runner exited with code \(code)"
+		}
+	}
+
+	private var machineName: String {
+		model.configuration?.machineName ?? "This Mac"
 	}
 
 	private var statusIcon: String {
-		if model.status.isRunning {
+		if !model.configurationIssues.isEmpty {
+			return "exclamationmark.triangle.fill"
+		}
+		if model.agentStatus?.isAvailableCITarget == true {
 			return "checkmark.circle.fill"
 		}
 		if model.status.isActive {
@@ -60,15 +168,19 @@ struct StatusHeaderView: View {
 	}
 
 	private var statusColor: Color {
-		switch model.status {
-		case .running:
+		if !model.configurationIssues.isEmpty {
+			return .orange
+		}
+		if model.agentStatus?.isAvailableCITarget == true {
 			return .green
+		}
+		switch model.status {
+		case .running, .stopped:
+			return .secondary
 		case .starting, .stopping:
 			return .orange
 		case .stoppedWithFailure:
 			return .red
-		case .stopped:
-			return .secondary
 		}
 	}
 }

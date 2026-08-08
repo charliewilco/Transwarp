@@ -5,56 +5,37 @@ struct LogView: View {
 	@Environment(AppModel.self) private var model
 
 	var body: some View {
-		VStack(alignment: .leading, spacing: 12) {
-			HStack {
-				VStack(alignment: .leading, spacing: 3) {
-					Text("Runner Logs")
-						.font(.headline)
-					Text("Status, tunnel, registration, and build output")
-						.font(.caption)
-						.foregroundStyle(.secondary)
-				}
-				Spacer()
-				Text("\(model.events.count) events")
+		Group {
+			if model.events.isEmpty {
+				Text("No activity yet")
 					.font(.caption)
 					.foregroundStyle(.secondary)
-			}
-
-			ZStack {
-				RoundedRectangle(cornerRadius: 8)
-					.fill(Color(nsColor: .textBackgroundColor))
-
-				if model.events.isEmpty {
-					ContentUnavailableView(
-						"No runner logs yet",
-						systemImage: "terminal",
-						description: Text("Start Transwarp or run a test build to see streamed output here.")
-					)
-					.padding()
-				} else {
-					ScrollViewReader { proxy in
-						ScrollView {
-							LazyVStack(alignment: .leading, spacing: 6) {
-								ForEach(model.events) { event in
-									Text(logLine(for: event))
-										.font(.system(.caption, design: .monospaced))
-										.textSelection(.enabled)
-										.frame(maxWidth: .infinity, alignment: .leading)
-										.id(event.id)
-								}
+					.frame(maxWidth: .infinity, alignment: .leading)
+			} else {
+				ScrollViewReader { proxy in
+					ScrollView {
+						LazyVStack(alignment: .leading, spacing: 5) {
+							ForEach(model.events) { event in
+								Text(logLine(for: event))
+									.font(.system(.caption, design: .monospaced))
+									.textSelection(.enabled)
+									.frame(maxWidth: .infinity, alignment: .leading)
+									.id(event.id)
 							}
-							.padding(12)
 						}
-						.onChange(of: model.events.count) {
-							guard let last = model.events.last else {
-								return
-							}
-							proxy.scrollTo(last.id, anchor: .bottom)
+						.padding(10)
+					}
+					.background(Color(nsColor: .textBackgroundColor))
+					.clipShape(RoundedRectangle(cornerRadius: 6))
+					.frame(height: 160)
+					.onChange(of: model.events.count) {
+						guard let last = model.events.last else {
+							return
 						}
+						proxy.scrollTo(last.id, anchor: .bottom)
 					}
 				}
 			}
-			.clipShape(RoundedRectangle(cornerRadius: 8))
 		}
 	}
 
@@ -62,10 +43,10 @@ struct LogView: View {
 		let metadata = [
 			event.jobId,
 			event.buildId,
-			event.sequence.map { "#\($0)" }
+			event.sequence.map { "#\($0)" },
 		]
-			.compactMap { $0 }
-			.joined(separator: " ")
+		.compactMap { $0 }
+		.joined(separator: " ")
 		if metadata.isEmpty {
 			return "[ \(event.kind.rawValue) ] \(event.message)"
 		}
