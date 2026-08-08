@@ -4,6 +4,10 @@ struct ContentView: View {
 	@Environment(AppModel.self) private var model
 	@State private var showsActivity = false
 
+	init(showsActivity: Bool = false) {
+		_showsActivity = State(initialValue: showsActivity)
+	}
+
 	var body: some View {
 		VStack(alignment: .leading, spacing: 14) {
 			StatusHeaderView()
@@ -46,7 +50,52 @@ struct ContentView: View {
 	}
 }
 
-#Preview {
+#Preview("Needs Setup") {
 	ContentView()
-		.environment(AppModel())
+		.environment(AppModel.previewNeedsSetup)
+}
+
+#Preview("Stopped") {
+	ContentView()
+		.environment(AppModel.previewStopped)
+}
+
+#Preview("Available") {
+	ContentView()
+		.environment(AppModel.previewAvailable)
+}
+
+#Preview("Paused") {
+	ContentView()
+		.environment(AppModel.previewPaused)
+}
+
+#Preview("Queued") {
+	ContentView()
+		.environment(AppModel.previewQueued)
+}
+
+#Preview("Running") {
+	ContentView()
+		.environment(AppModel.previewRunning)
+}
+
+#Preview("Passed") {
+	ContentView()
+		.environment(AppModel.previewPassed)
+}
+
+#Preview("Failed") {
+	ContentView()
+		.environment(AppModel.previewFailed)
+}
+
+#Preview("Error") {
+	ContentView()
+		.environment(AppModel.previewError)
+}
+
+#Preview("Expanded Activity") {
+	ContentView(showsActivity: true)
+		.environment(AppModel.previewExpandedActivity)
 }

@@ -9,7 +9,8 @@ import TranswarpCore
 final class AppModel {
 	private nonisolated static let minimumSupportedMacOSMajorVersion = 14
 
-	private let process = RunnerProcess()
+	private let process: RunnerControlling
+	private let dependencies: AppModelDependencies
 	private let preferencesDefaults: UserDefaults
 	private let logEventsToStandardOutput: Bool
 
@@ -200,16 +201,18 @@ final class AppModel {
 		return "Call the public tunnel /status endpoint with runner authentication"
 	}
 
-	init(preferencesDefaults: UserDefaults = .standard) {
-		self.preferencesDefaults = preferencesDefaults
-		logEventsToStandardOutput = ProcessInfo.processInfo.environment["TRANSWARP_APP_LOG_EVENTS_TO_STDOUT"] == "1"
+	init(dependencies: AppModelDependencies = .live) {
+		self.dependencies = dependencies
+		process = dependencies.makeRunnerProcess()
+		preferencesDefaults = dependencies.preferencesDefaults
+		logEventsToStandardOutput = dependencies.environment["TRANSWARP_APP_LOG_EVENTS_TO_STDOUT"] == "1"
 		let preferences = AppPreferencesStore.load(from: preferencesDefaults)
-		startRunnerOnLaunch = ProcessInfo.processInfo.environment["TRANSWARP_START_RUNNER_ON_LAUNCH"] == "1" ||
+		startRunnerOnLaunch = dependencies.environment["TRANSWARP_START_RUNNER_ON_LAUNCH"] == "1" ||
 			preferences.startRunnerOnLaunch
 		refreshLoginItemState()
 
 		do {
-			configurationPath = try Self.ensureSecuredDefaultConfigurationFile()
+			configurationPath = try dependencies.ensureConfigurationFile()
 			reloadConfiguration()
 			try migrateConfigurationSecretsToKeychain()
 			append(.init(kind: .info, message: "Configuration ready at \(configurationPath?.path ?? "unknown")"))
@@ -260,7 +263,7 @@ final class AppModel {
 
 	func setOpensAtLogin(_ isEnabled: Bool) {
 		do {
-			try LoginItemService.setEnabled(isEnabled)
+			try dependencies.setLoginItemEnabled(isEnabled)
 			refreshLoginItemState()
 			lastError = nil
 		} catch {
@@ -288,7 +291,7 @@ final class AppModel {
 		request.httpMethod = "POST"
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 		do {
-			request.setValue("Bearer \(try KeychainSecretStore.resolve(configuration.sharedToken))", forHTTPHeaderField: "Authorization")
+			request.setValue("Bearer \(try dependencies.resolveSecret(configuration.sharedToken))", forHTTPHeaderField: "Authorization")
 			request.httpBody = try JSONEncoder().encode(AvailabilityUpdatePayload(acceptingBuilds: accepting))
 		} catch {
 			lastError = error.localizedDescription
@@ -297,7 +300,7 @@ final class AppModel {
 		}
 
 		do {
-			let (data, response) = try await NoRedirectURLSession.data(for: request)
+			let (data, response) = try await dependencies.dataForRequest(request)
 			guard let httpResponse = response as? HTTPURLResponse else {
 				throw AppModelError("CI availability update failed without an HTTP response")
 			}
@@ -337,7 +340,7 @@ final class AppModel {
 		request.httpMethod = "POST"
 		request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 		do {
-			request.setValue("Bearer \(try KeychainSecretStore.resolve(configuration.sharedToken))", forHTTPHeaderField: "Authorization")
+			request.setValue("Bearer \(try dependencies.resolveSecret(configuration.sharedToken))", forHTTPHeaderField: "Authorization")
 			request.httpBody = try JSONEncoder().encode(payload)
 		} catch {
 			lastError = error.localizedDescription
@@ -346,7 +349,7 @@ final class AppModel {
 		}
 
 		do {
-			let (data, response) = try await NoRedirectURLSession.data(for: request)
+			let (data, response) = try await dependencies.dataForRequest(request)
 			guard let httpResponse = response as? HTTPURLResponse else {
 				throw AppModelError("Test build failed without an HTTP response")
 			}
@@ -382,9 +385,9 @@ final class AppModel {
 		do {
 			let request = try PublicEndpointDiagnosis.request(
 				configuration: configuration,
-				resolveSecret: KeychainSecretStore.resolve
+				resolveSecret: dependencies.resolveSecret
 			)
-			let (data, response) = try await NoRedirectURLSession.data(for: request)
+			let (data, response) = try await dependencies.dataForRequest(request)
 			guard let httpResponse = response as? HTTPURLResponse else {
 				throw AppModelError("Public URL diagnosis failed without an HTTP response")
 			}
@@ -430,7 +433,7 @@ final class AppModel {
 		var request = URLRequest(url: url)
 		request.httpMethod = "POST"
 		do {
-			request.setValue("Bearer \(try KeychainSecretStore.resolve(configuration.sharedToken))", forHTTPHeaderField: "Authorization")
+			request.setValue("Bearer \(try dependencies.resolveSecret(configuration.sharedToken))", forHTTPHeaderField: "Authorization")
 		} catch {
 			lastError = error.localizedDescription
 			append(.init(kind: .error, message: "Cancel failed: \(error.localizedDescription)"))
@@ -438,7 +441,7 @@ final class AppModel {
 		}
 
 		do {
-			let (data, response) = try await NoRedirectURLSession.data(for: request)
+			let (data, response) = try await dependencies.dataForRequest(request)
 			guard let httpResponse = response as? HTTPURLResponse else {
 				throw AppModelError("Cancel failed without an HTTP response")
 			}
@@ -460,14 +463,14 @@ final class AppModel {
 		guard let configurationPath else {
 			return
 		}
-		NSWorkspace.shared.activateFileViewerSelecting([configurationPath])
+		dependencies.revealConfiguration(configurationPath)
 	}
 
 	func openConfiguration() {
 		guard let configurationPath else {
 			return
 		}
-		NSWorkspace.shared.open(configurationPath)
+		dependencies.openConfiguration(configurationPath)
 	}
 
 	func copyGitHubActionWorkflow(mode: GitHubActionWorkflow.Mode, jobID: String? = nil) {
@@ -478,8 +481,7 @@ final class AppModel {
 			return
 		}
 
-		NSPasteboard.general.clearContents()
-		NSPasteboard.general.setString(workflow, forType: .string)
+		dependencies.copyToPasteboard(workflow)
 		if let jobID, !jobID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, mode != .releaseEvidence {
 			append(.init(kind: .info, message: "Copied \(mode.rawValue) GitHub Action workflow for \(jobID)"))
 		} else {
@@ -494,8 +496,7 @@ final class AppModel {
 			return
 		}
 
-		NSPasteboard.general.clearContents()
-		NSPasteboard.general.setString(checklist, forType: .string)
+		dependencies.copyToPasteboard(checklist)
 		append(.init(kind: .info, message: "Copied \(mode.rawValue) GitHub Action secret checklist"))
 	}
 
@@ -509,14 +510,13 @@ final class AppModel {
 			let values = try CIWorkflowSecretValueExport.text(
 				mode: mode,
 				configuration: configuration,
-				resolveSecret: KeychainSecretStore.resolve
+				resolveSecret: dependencies.resolveSecret
 			)
 			guard !values.isEmpty else {
 				append(.init(kind: .info, message: "\(mode.rawValue) workflow has no local secret values to copy"))
 				return
 			}
-			NSPasteboard.general.clearContents()
-			NSPasteboard.general.setString(values, forType: .string)
+			dependencies.copyToPasteboard(values)
 			append(.init(kind: .info, message: "Copied \(mode.rawValue) GitHub Action secret values"))
 		} catch {
 			lastError = error.localizedDescription
@@ -530,7 +530,7 @@ final class AppModel {
 		}
 
 		do {
-			configuration = try AgentConfigurationStore.load(from: configurationPath)
+			configuration = try dependencies.loadConfiguration(configurationPath)
 			updateConfigurationIssues()
 			lastError = nil
 		} catch {
@@ -546,8 +546,8 @@ final class AppModel {
 		}
 
 		var securedConfiguration = configuration
-		try KeychainSecretStore.secure(&securedConfiguration)
-		try AgentConfigurationStore.save(securedConfiguration, to: configurationPath)
+		try dependencies.secureConfiguration(&securedConfiguration)
+		try dependencies.saveConfiguration(securedConfiguration, configurationPath)
 		self.configuration = securedConfiguration
 		updateConfigurationIssues()
 		lastError = nil
@@ -566,7 +566,7 @@ final class AppModel {
 		configurationIssues.append(contentsOf: AgentConfigurationValidator
 			.issues(for: configuration)
 			.map(\.message))
-		configurationIssues.append(contentsOf: KeychainSecretStore.issues(for: configuration))
+		configurationIssues.append(contentsOf: dependencies.secretIssues(configuration))
 	}
 
 	private func startStatusPolling() {
@@ -606,13 +606,13 @@ final class AppModel {
 
 		var request = URLRequest(url: url)
 		do {
-			request.setValue("Bearer \(try KeychainSecretStore.resolve(configuration.sharedToken))", forHTTPHeaderField: "Authorization")
+			request.setValue("Bearer \(try dependencies.resolveSecret(configuration.sharedToken))", forHTTPHeaderField: "Authorization")
 		} catch {
 			lastError = error.localizedDescription
 			return nil
 		}
 
-		let (data, response) = try await NoRedirectURLSession.data(for: request)
+		let (data, response) = try await dependencies.dataForRequest(request)
 		guard let httpResponse = response as? HTTPURLResponse,
 			  200..<300 ~= httpResponse.statusCode else {
 			return nil
@@ -779,9 +779,9 @@ final class AppModel {
 			return
 		}
 		let original = configuration
-		try KeychainSecretStore.secure(&configuration)
+		try dependencies.secureConfiguration(&configuration)
 		if configuration != original, let configurationPath {
-			try AgentConfigurationStore.save(configuration, to: configurationPath)
+			try dependencies.saveConfiguration(configuration, configurationPath)
 			self.configuration = configuration
 			updateConfigurationIssues()
 			append(.init(kind: .info, message: "Configuration secrets stored in Keychain"))
@@ -789,7 +789,7 @@ final class AppModel {
 	}
 
 	private func refreshLoginItemState() {
-		loginItemState = LoginItemService.state()
+		loginItemState = dependencies.loginItemState()
 	}
 
 	private func startRunnerIfNeeded() {
@@ -804,7 +804,7 @@ final class AppModel {
 		}
 	}
 
-	private static func ensureSecuredDefaultConfigurationFile() throws -> URL {
+	static func ensureSecuredDefaultConfigurationFile() throws -> URL {
 		let url = try AgentConfigurationStore.defaultPath()
 		if !FileManager.default.fileExists(atPath: url.path) {
 			var starter = AgentConfiguration.starter()

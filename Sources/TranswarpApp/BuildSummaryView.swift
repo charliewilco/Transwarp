@@ -80,5 +80,5 @@ struct BuildSummaryView: View {
 
 #Preview {
 	BuildSummaryView()
-		.environment(AppModel())
+		.environment(AppModel.previewRunning)
 }

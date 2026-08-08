@@ -187,5 +187,5 @@ struct StatusHeaderView: View {
 
 #Preview {
 	StatusHeaderView()
-		.environment(AppModel())
+		.environment(AppModel.previewAvailable)
 }

@@ -88,6 +88,8 @@ struct SettingsView: View {
 				SecureField("Runner Access Client Secret", text: $draft.runnerAccessClientSecret)
 			}
 
+			CIWorkflowSettingsView()
+
 			Section("CI Registration") {
 				LabeledContent("Coordinator Base URL") {
 					HStack {
@@ -297,5 +299,5 @@ struct SettingsView: View {
 
 #Preview {
 	SettingsView()
-		.environment(AppModel())
+		.environment(AppModel.previewAvailable)
 }

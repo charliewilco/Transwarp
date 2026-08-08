@@ -1,9 +1,62 @@
+import Foundation
 import Testing
 @testable import TranswarpApp
 import TranswarpCore
 
+@MainActor
 @Suite
 struct AppModelTests {
+	@Test
+	func initializationUsesInjectedConfigurationAndSecretStore() throws {
+		let configurationURL = URL(filePath: NSTemporaryDirectory())
+			.appending(path: "TranswarpAppModelTests-\(UUID().uuidString)")
+			.appending(path: "agent.json")
+		var loadedConfiguration = AgentConfiguration.previewReady
+		var ensuredPath = false
+		var loadedPath: URL?
+		var secured = false
+		var savedConfiguration: AgentConfiguration?
+
+		let dependencies = AppModelDependencies(
+			makeRunnerProcess: { TestRunnerProcess() },
+			preferencesDefaults: UserDefaults(suiteName: "co.charliewil.transwarp.tests.\(UUID().uuidString)") ?? .standard,
+			environment: [:],
+			ensureConfigurationFile: {
+				ensuredPath = true
+				return configurationURL
+			},
+			loadConfiguration: { url in
+				loadedPath = url
+				return loadedConfiguration
+			},
+			saveConfiguration: { configuration, _ in
+				savedConfiguration = configuration
+				loadedConfiguration = configuration
+			},
+			secureConfiguration: { configuration in
+				secured = true
+				configuration.sharedToken = "secured-token"
+			},
+			resolveSecret: { $0 },
+			secretIssues: { _ in [] },
+			loginItemState: { LoginItemState(isEnabled: false, canToggle: true, message: "Off") },
+			setLoginItemEnabled: { _ in },
+			revealConfiguration: { _ in },
+			openConfiguration: { _ in },
+			copyToPasteboard: { _ in },
+			dataForRequest: { _ in throw AppModelError("network disabled") }
+		)
+
+		let model = AppModel(dependencies: dependencies)
+
+		#expect(ensuredPath)
+		#expect(loadedPath == configurationURL)
+		#expect(secured)
+		#expect(savedConfiguration?.sharedToken == "secured-token")
+		#expect(model.configurationPath == configurationURL)
+		#expect(model.configuration?.sharedToken == "secured-token")
+	}
+
 	@Test
 	func localTestBuildUsesFirstNonCheckoutJob() {
 		let configuration = AgentConfiguration(
@@ -305,4 +358,13 @@ struct AppModelTests {
 	func hostSupportIssueRejectsOlderMacOS() {
 		#expect(AppModel.hostSupportIssue(osMajorVersion: 13, architecture: "arm64") == "Transwarp requires macOS 14 or newer.")
 	}
+}
+
+@MainActor
+private final class TestRunnerProcess: RunnerControlling {
+	var onEvent: ((RunnerEvent) -> Void)?
+	var onStatusChange: ((RunnerProcess.Status) -> Void)?
+
+	func start(configurationPath: URL) {}
+	func stop() {}
 }
